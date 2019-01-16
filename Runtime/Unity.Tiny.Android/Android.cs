@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Tiny.Rendering;
+using Unity.Platforms;
 
 namespace Unity.Tiny.Android
 {
@@ -28,52 +28,27 @@ namespace Unity.Tiny.Android
         {
         }
 
-        public delegate void OnPauseDelegate(int pause);
-
         [MonoPInvokeCallbackAttribute]
         static void ManagedOnPauseCallback(int pause)
         {
-            var renderSystem = sWindowSystem.World.GetExistingSystem<RendererBGFXSystem>();
-            if (renderSystem != null)
-            {
-                renderSystem.Pause(pause != 0);
-            }
+            PlatformEvents.SendSuspendResumeEvent(sWindowSystem, new SuspendResumeEvent(pause != 0));
         }
 
         public void SetOnPauseCallback()
         {
-            AndroidNativeCalls.set_pause_callback(Marshal.GetFunctionPointerForDelegate((OnPauseDelegate)ManagedOnPauseCallback));
+            AndroidNativeCalls.set_pause_callback(Marshal.GetFunctionPointerForDelegate((Action<int>)ManagedOnPauseCallback));
         }
-
-        /*TODO how we can inform RunLoop about system events pause/resume/destroy?
-        private static OnPauseDelegate onPauseM;
-
-        [MonoPInvokeCallbackAttribute]
-        static void ManagedOnPauseCallback(int pause)
-        {
-            onPauseM(pause);
-        }
-
-        public void SetOnPauseCallback(OnPauseDelegate m)
-        {
-            onPauseM = m;
-            AndroidNativeCalls.set_pause_callback(Marshal.GetFunctionPointerForDelegate((OnPauseDelegate)ManagedOnPauseCallback));
-        }
-
-        private static Action onDestroyM;
 
         [MonoPInvokeCallbackAttribute]
         static void ManagedOnDestroyCallback()
         {
-            onDestroyM();
+            PlatformEvents.SendQuitEvent(sWindowSystem, new QuitEvent());
         }
 
-        public void SetOnDestroyCallback(Action m)
+        public void SetOnDestroyCallback()
         {
-            onDestroyM = m;
             AndroidNativeCalls.set_destroy_callback(Marshal.GetFunctionPointerForDelegate((Action)ManagedOnDestroyCallback));
         }
-        */
 
         public override void DebugReadbackImage(out int w, out int h, out NativeArray<byte> pixels)
         {
@@ -106,6 +81,7 @@ namespace Unity.Tiny.Android
             }
 
             SetOnPauseCallback();
+            SetOnDestroyCallback();
 
             int winw = 0, winh = 0;
             AndroidNativeCalls.getWindowSize(ref winw, ref winh);

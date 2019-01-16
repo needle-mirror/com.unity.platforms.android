@@ -15,13 +15,38 @@ namespace Unity.Platforms.Android
         public override string ExecutableExtension => ".apk";
         public override string UnityPlatformName => nameof(UnityEditor.BuildTarget.Android);
 
-        private ShellProcessOutput InstallApp(string adbPath, string apkName, string buildDir)
+        private string GetPackageName(string name)
         {
+            return $"com.unity3d.{name}";
+        }
+
+        private ShellProcessOutput InstallApp(string adbPath, string name, string apkName, string buildDir)
+        {
+            // checking that app is already installed
+            var result = Shell.Run(new ShellProcessArgs()
+            {
+                ThrowOnError = false,
+                Executable = adbPath,
+                Arguments = new string[] { "shell", "pm", "list", "packages", GetPackageName(name) },
+                WorkingDirectory = new DirectoryInfo(buildDir)
+            });
+            if (result.FullOutput.Contains(GetPackageName(name)))
+            {
+                // uninstall previous version, it may be signed with different key, so re-installing is not possible
+                result = Shell.Run(new ShellProcessArgs()
+                {
+                    ThrowOnError = false,
+                    Executable = adbPath,
+                    Arguments = new string[] { "uninstall", GetPackageName(name) },
+                    WorkingDirectory = new DirectoryInfo(buildDir)
+                });
+            }
+
             return Shell.Run(new ShellProcessArgs()
             {
                 ThrowOnError = false,
                 Executable = adbPath,
-                Arguments = new string[] { "install", "-r", apkName },
+                Arguments = new string[] { "install", apkName },
                 WorkingDirectory = new DirectoryInfo(buildDir)
             });
         }
@@ -38,7 +63,7 @@ namespace Unity.Platforms.Android
                         "-c", "android.intent.category.LAUNCHER",
                         "-f", "0x10200000",
                         "-S",
-                        "-n", $"com.unity3d.{name}/com.unity3d.tinyplayer.UnityTinyActivity"
+                        "-n", $"{GetPackageName(name)}/com.unity3d.tinyplayer.UnityTinyActivity"
                 },
                 WorkingDirectory = new DirectoryInfo(buildDir)
             });
@@ -48,12 +73,12 @@ namespace Unity.Platforms.Android
         {
             var buildDir = buildTarget.Directory.FullName;
             var adbPath = AndroidTools.AdbPath;
-            var result = InstallApp(adbPath, buildTarget.FullName, buildDir);
+            var name = Path.GetFileNameWithoutExtension(buildTarget.Name).ToLower();
+            var result = InstallApp(adbPath, name, buildTarget.FullName, buildDir);
             if (!result.FullOutput.Contains("Success"))
             {
                 throw new Exception($"Cannot install APK : {result.FullOutput}");
             }
-            var name = Path.GetFileNameWithoutExtension(buildTarget.Name).ToLower();
             result = LaunchApp(adbPath, name, buildDir);
             if (result.Succeeded)
             {
@@ -70,8 +95,9 @@ namespace Unity.Platforms.Android
             ShellProcessOutput output;
             var adbPath = AndroidTools.AdbPath;
 
+            var name = exeName.ToLower();
             var executable = $"{workingDirPath}/{exeName}{ExecutableExtension}";
-            output = InstallApp(adbPath, executable, workingDirPath);
+            output = InstallApp(adbPath, name, executable, workingDirPath);
             if (!output.FullOutput.Contains("Success"))
             {
                 return output;
@@ -88,7 +114,6 @@ namespace Unity.Platforms.Android
                 WorkingDirectory = new DirectoryInfo(workingDirPath)
             });
 
-            var name = exeName.ToLower();
             output = LaunchApp(adbPath, name, workingDirPath);
 
             System.Threading.Thread.Sleep(timeout == 0 ? 2000 : timeout); // to kill process anyway,
@@ -101,7 +126,7 @@ namespace Unity.Platforms.Android
                 Executable = adbPath,
                 Arguments = new string[] {
                         "shell", "am", "force-stop",
-                        $"com.unity3d.{name}"
+                        GetPackageName(name)
                 },
                 WorkingDirectory = new DirectoryInfo(workingDirPath)
             });

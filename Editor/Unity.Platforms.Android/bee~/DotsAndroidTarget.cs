@@ -13,5 +13,5 @@ class DotsAndroidTargetArmv7 : DotsBuildSystemTarget
 
     public override string Identifier => "android_armv7";
 
-    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain();
+    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain(true);
 }
