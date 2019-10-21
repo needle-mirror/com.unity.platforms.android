@@ -9,7 +9,7 @@ class CustomizerForTinyAndroid : AsmDefCSharpProgramCustomizer
     // not exactly right, but good enough for now
     public override string[] ImplementationFor => new[] {"Unity.Tiny.Core"};
 
-    public override void CustomizeSelf(AsmDefBasedDotsRuntimeCSharpProgram program)
+    public override void CustomizeSelf(AsmDefCSharpProgram program)
     {
         program.NativeProgram.Libraries.Add(new SystemLibrary("log"));
         program.NativeProgram.Libraries.Add(new SystemLibrary("android"));

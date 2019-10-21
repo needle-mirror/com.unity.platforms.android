@@ -3,131 +3,193 @@ package com.unity3d.tinyplayer;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.AssetManager;
-import android.graphics.Canvas;
-import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 import android.view.SurfaceView;
 import android.view.SurfaceHolder;
+import android.os.Handler;
+import android.os.Message;
+import android.os.Looper;
 
 class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
 {
-     private class TinySurfaceThread extends Thread
-     {
-        private boolean mThreadRun = false;
+    enum RunStateEvent { PAUSE, RESUME, QUIT, SURFACE_LOST, SURFACE_ACQUIRED, SURFACE_CHANGED, NEXT_FRAME };
+    private static final int RUN_STATE_CHANGED_MSG_CODE = 2269;
 
-        public TinySurfaceThread() {}
+    private class UnityTinyThread extends Thread
+    {
+        Handler m_Handler;
+        SurfaceHolder m_Holder;
+        boolean m_Running = false;
+        boolean m_SurfaceAvailable = false;
 
-        public void setRunning(boolean running)
+        public UnityTinyThread(SurfaceHolder holder)
         {
-            mThreadRun = running;
+            m_Holder = holder;
         }
 
         @Override
         public void run()
         {
-            while (mThreadRun)
+            setName("DOTSMain");
+
+            Looper.prepare();
+            m_Handler = new Handler(new Handler.Callback()
             {
-                Canvas canvas = null;
-                try
+                public boolean handleMessage(Message msg)
                 {
-                    if (getContext() instanceof Activity)
+                    if (msg.what != RUN_STATE_CHANGED_MSG_CODE)
+                        return false;
+
+                    final RunStateEvent runState = (RunStateEvent)msg.obj;
+                    if (runState == RunStateEvent.NEXT_FRAME)
                     {
-                        ((Activity)getContext()).runOnUiThread(new Runnable() {
-                            public void run()
-                            {
-                                UnityTinyAndroidJNILib.step();
-                            }
-                        });
+                        if (!m_Running)
+                            return true;
+
+                        if (!m_SurfaceAvailable)
+                            return true;
+
+                        UnityTinyAndroidJNILib.step();
                     }
-                    sleep(16); // 60FPS ?
+                    else if (runState == RunStateEvent.QUIT)
+                    {
+                        Log.d(TAG, "Thread QUIT");
+                        UnityTinyAndroidJNILib.destroy();
+                        Looper.myLooper().quit();
+                    }
+                    else if (runState == RunStateEvent.RESUME)
+                    {
+                        Log.d(TAG, "Thread RESUME");
+                        UnityTinyAndroidJNILib.pause(0);
+                        m_Running = true;
+                    }
+                    else if (runState == RunStateEvent.PAUSE)
+                    {
+                        Log.d(TAG, "Thread PAUSE");
+                        UnityTinyAndroidJNILib.pause(1);
+                        m_Running = false;
+                    }
+                    else if (runState == RunStateEvent.SURFACE_LOST)
+                    {
+                        Log.d(TAG, "Thread SURFACE_LOST");
+                        m_SurfaceAvailable = false;
+                    }
+                    else if (runState == RunStateEvent.SURFACE_ACQUIRED)
+                    {
+                        Log.d(TAG, "Thread SURFACE_ACQUIRED");
+                        m_SurfaceAvailable = true;
+                    }
+                    else if (runState == RunStateEvent.SURFACE_CHANGED)
+                    {
+                        Log.d(TAG, "Thread SURFACE_CHANGED");
+                        UnityTinyAndroidJNILib.init(m_Holder.getSurface(), msg.arg1, msg.arg2);
+                    }
+
+                    // trigger next frame
+                    if (m_Running)
+                        Message.obtain(m_Handler, RUN_STATE_CHANGED_MSG_CODE, RunStateEvent.NEXT_FRAME).sendToTarget();
+
+                    return true;
                 }
-                catch (InterruptedException e)
-                {
-                }
-            }
+            });
+
+            Log.d(TAG, "Thread JNILib.start call");
+            UnityTinyAndroidJNILib.start();
+            Log.d(TAG, "Thread JNILib.start after");
+
+            Looper.loop();
         }
+
+        public void quit()
+        {
+            dispatchRunStateEvent(RunStateEvent.QUIT);
+        }
+
+        public void resumeExecution()
+        {
+            dispatchRunStateEvent(RunStateEvent.RESUME);
+        }
+
+        public void pauseExecution()
+        {
+            dispatchRunStateEvent(RunStateEvent.PAUSE);
+        }
+
+        public void surfaceLost()
+        {
+            dispatchRunStateEvent(RunStateEvent.SURFACE_LOST);
+        }
+
+        public void surfaceAcquired()
+        {
+            dispatchRunStateEvent(RunStateEvent.SURFACE_ACQUIRED);
+        }
+
+        public void surfaceChanged(int width, int height)
+        {
+            if (m_Handler != null)
+                Message.obtain(m_Handler, RUN_STATE_CHANGED_MSG_CODE, width, height, RunStateEvent.SURFACE_CHANGED).sendToTarget();
+        }
+
+        private void dispatchRunStateEvent(RunStateEvent ev)
+        {
+            if (m_Handler != null)
+                Message.obtain(m_Handler, RUN_STATE_CHANGED_MSG_CODE, ev).sendToTarget();
+        }
+
     }
 
     private static String TAG = "UnityTinyView";
-    public static UnityTinyView sSurfaceView;
-    private TinySurfaceThread mThread;
-    private boolean mInitialized = false;
-    private boolean mStarted = false;
+    private UnityTinyThread m_Thread;
 
     public UnityTinyView(AssetManager assetManager, String path, Context context)
     {
         super(context);
-        init(assetManager, path, false, 0, 0);
-    }
 
-    public UnityTinyView(AssetManager assetManager, Context context, String path, boolean translucent, int depth, int stencil)
-    {
-        super(context);
-        init(assetManager, path, translucent, depth, stencil);
-    }
-
-    private void init(AssetManager assetManager, String path, boolean translucent, int depth, int stencil)
-    {
         getHolder().addCallback(this);
         UnityTinyAndroidJNILib.setAssetManager(assetManager);
-        sSurfaceView = this;
+
+        m_Thread = new UnityTinyThread(getHolder());
+        m_Thread.start();
     }
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height)
     {
         Log.d(TAG, "surfaceChanged " + width + " x " + height);
-        UnityTinyAndroidJNILib.init(holder.getSurface(), width, height);
-        mInitialized = true;
+        m_Thread.surfaceChanged(width, height);
     }
 
     @Override
     public void surfaceCreated(SurfaceHolder holder)
     {
         Log.d(TAG, "surfaceCreated");
-        if (!mStarted)
-        {
-            mStarted = true;
-            UnityTinyAndroidJNILib.start();
-        }
-        mThread = new TinySurfaceThread();
-        mThread.setRunning(true);
-        mThread.start();
+        m_Thread.surfaceAcquired();
     }
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder)
     {
         Log.d(TAG, "surfaceDestroyed");
-        UnityTinyAndroidJNILib.init(null, 0, 0);
-        boolean retry = true;
-        mThread.setRunning(false);
-        while (retry)
-        {
-            try
-            {
-                mThread.join();
-                retry = false;
-            }
-            catch (InterruptedException e)
-            {
-            }
-        }
+        m_Thread.surfaceLost();
     }
 
     public void onPause()
     {
-        UnityTinyAndroidJNILib.pause(1);
+        Log.d(TAG, "Pause");
+        m_Thread.pauseExecution();
     }
 
     public void onResume()
     {
-        UnityTinyAndroidJNILib.pause(0);
+        Log.d(TAG, "Resume");
+        m_Thread.resumeExecution();
     }
 
     public void onDestroy()
     {
-        UnityTinyAndroidJNILib.destroy();
+        Log.d(TAG, "Destroy");
+        m_Thread.quit();
     }
 }

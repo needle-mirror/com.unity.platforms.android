@@ -5,8 +5,6 @@ using System.Runtime.InteropServices;
 using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Tiny.Core;
-using Unity.Tiny.Core2D;
 
 namespace Unity.Tiny.Android
 {
@@ -24,17 +22,7 @@ namespace Unity.Tiny.Android
             return (IntPtr)AndroidNativeCalls.getNativeWindow();
         }
 
-        private static MainLoopDelegate staticM;
-
-        [MonoPInvokeCallbackAttribute]
-        static bool ManagedRAFCallback()
-        {
-#if UNITY_DOTSPLAYER
-            Unity.Collections.LowLevel.Unsafe.UnsafeUtility.FreeTempMemory();
-#endif
-            return !sWindowSystem.Enabled ? true : staticM();
-        }
-
+        /*TODO how we can inform RunLoop about system events pause/resume/destroy?
         public delegate void OnPauseDelegate(int pause);
 
         private static OnPauseDelegate onPauseM;
@@ -57,12 +45,6 @@ namespace Unity.Tiny.Android
         {
         }
 
-        public override void InfiniteMainLoop(MainLoopDelegate m)
-        {
-            staticM = m;
-            AndroidNativeCalls.set_animation_frame_callback(Marshal.GetFunctionPointerForDelegate((MainLoopDelegate)ManagedRAFCallback));
-        }
-
         public void SetOnPauseCallback(OnPauseDelegate m)
         {
             onPauseM = m;
@@ -74,6 +56,7 @@ namespace Unity.Tiny.Android
             onDestroyM = m;
             AndroidNativeCalls.set_destroy_callback(Marshal.GetFunctionPointerForDelegate((Action)ManagedOnDestroyCallback));
         }
+        */
 
         public override void DebugReadbackImage(out int w, out int h, out NativeArray<byte> pixels)
         {
@@ -117,7 +100,7 @@ namespace Unity.Tiny.Android
             AndroidNativeCalls.getWindowSize(ref winw, ref winh);
             config.focused = true;
             config.visible = true;
-            config.orientation = winw >= winh ? DisplayOrientation.Horizontal : DisplayOrientation.Vertical;
+            config.orientation = winw >= winh ? ScreenOrientation.Landscape : ScreenOrientation.Portrait;
             config.frameWidth = winw;
             config.frameHeight = winh;
             int sw = 0, sh = 0;
@@ -130,7 +113,6 @@ namespace Unity.Tiny.Android
             AndroidNativeCalls.getFramebufferSize(ref fbw, ref fbh);
             config.framebufferWidth = fbw;
             config.framebufferHeight = fbh;
-            config.renderMode = RenderMode.BGFX;
             env.SetConfigData(config);
 
             frameTime = AndroidNativeCalls.time();
@@ -161,7 +143,7 @@ namespace Unity.Tiny.Android
                 if (config.autoSizeToFrame)
                 {
                     Console.WriteLine("Android Window update size.");
-                    config.orientation = winw >= winh ? DisplayOrientation.Horizontal : DisplayOrientation.Vertical;
+                    config.orientation = winw >= winh ? ScreenOrientation.Landscape : ScreenOrientation.Portrait;
                     config.width = winw;
                     config.height = winh;
                     config.frameWidth = winw;
@@ -170,7 +152,6 @@ namespace Unity.Tiny.Android
                     AndroidNativeCalls.getFramebufferSize(ref fbw, ref fbh);
                     config.framebufferWidth = fbw;
                     config.framebufferHeight = fbh;
-                    config.renderMode = RenderMode.BGFX;
                     env.SetConfigData(config);
                 }
                 else
@@ -238,9 +219,6 @@ namespace Unity.Tiny.Android
 
         [DllImport("lib_unity_tiny_android", EntryPoint = "time_android")]
         public static extern double time();
-
-        [DllImport("lib_unity_tiny_android", EntryPoint = "rafcallbackinit_android")]
-        public static extern bool set_animation_frame_callback(IntPtr func);
 
         [DllImport("lib_unity_tiny_android", EntryPoint = "pausecallbacksinit_android")]
         public static extern bool set_pause_callback(IntPtr func);

@@ -1,19 +1,19 @@
 {
   "name": "com.unity.platforms.android",
   "displayName": "DOTS Android Platform",
-  "version": "0.1.3-preview",
-  "unity": "2019.1",
-  "unityRelease": "0f1",
+  "version": "0.1.5-preview",
+  "unity": "2019.3",
+  "unityRelease": "0b3",
   "description": "Provides support for building DOTS based projects to Android.",
   "keywords": [
     "android"
   ],
   "dependencies": {
-    "com.unity.platforms": "0.1.3-preview"
+    "com.unity.platforms": "0.1.5-preview"
   },
   "repository": {
     "type": "git",
     "url": "git@github.com:Unity-Technologies/dots-platforms.git",
-    "revision": "a704417ace5136f92b08bf313ec2aac4f1e3a075"
+    "revision": "f516fdf62c6dfe705b7e5c86ea43e145231f59c0"
   }
 }

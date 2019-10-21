@@ -1,6 +1,5 @@
-using Unity.Tiny.Input;
 using Unity.Entities;
-using Unity.Tiny.Core2D;
+using Unity.Tiny.Input;
 
 namespace Unity.Tiny.Android
 {
@@ -9,6 +8,12 @@ namespace Unity.Tiny.Android
     public class AndroidInputSystem : InputSystem
     {
         private bool initialized = false;
+
+        // these mirror the Android native MotionEvent constants
+        const int ACTION_DOWN = 0;
+        const int ACTION_UP = 1;
+        const int ACTION_MOVE = 2;
+        const int ACTION_CANCEL = 3;
 
         protected override void OnStartRunning()
         {
@@ -35,13 +40,13 @@ namespace Unity.Tiny.Android
                 int* touchInfoStream = AndroidNativeCalls.getTouchInfoStream(ref touchInfoStreamLen);
                 for (int i = 0; i < touchInfoStreamLen; i += 4)
                 {
-                    if (touchInfoStream[i + 1] == 0) //ACTION_DOWN
+                    if (touchInfoStream[i + 1] == ACTION_DOWN)
                         m_inputState.TouchEvent(touchInfoStream[i], TouchState.Began, touchInfoStream[i + 2], touchInfoStream[i + 3]);
-                    else if (touchInfoStream[i + 1] == 1) //ACTION_UP
+                    else if (touchInfoStream[i + 1] == ACTION_UP)
                         m_inputState.TouchEvent(touchInfoStream[i], TouchState.Ended, touchInfoStream[i + 2], touchInfoStream[i + 3]);
-                    else if (touchInfoStream[i + 1] == 2) //ACTION_MOVE
+                    else if (touchInfoStream[i + 1] == ACTION_MOVE)
                         m_inputState.TouchEvent(touchInfoStream[i], TouchState.Moved, touchInfoStream[i + 2], touchInfoStream[i + 3]);
-                    else if (touchInfoStream[i + 1] == 3) //ACTION_CANCEL
+                    else if (touchInfoStream[i + 1] == ACTION_CANCEL)
                         m_inputState.TouchEvent(touchInfoStream[i], TouchState.Canceled, touchInfoStream[i + 2], touchInfoStream[i + 3]);
                 }
 

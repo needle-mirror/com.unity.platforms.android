@@ -1,4 +1,4 @@
-#include "zeroplayer.h"
+#include <Unity/Runtime.h>
 
 #include <dlfcn.h>
 #include <jni.h>
@@ -31,52 +31,52 @@ static bool (*raf)() = 0;
 static void (*pausef)(int) = 0;
 static void (*destroyf)() = 0;
 
-ZEROPLAYER_EXPORT
-bool init_android() {
+DOTS_EXPORT(bool)
+init_android() {
     __android_log_print(ANDROID_LOG_INFO, "AndroidWrapper", "Android C Init\n");
     return true;
 }
 
-ZEROPLAYER_EXPORT
-void getWindowSize_android(int *width, int *height) {
+DOTS_EXPORT(void)
+getWindowSize_android(int *width, int *height) {
     *width = windowW;
     *height = windowH;
 }
 
-ZEROPLAYER_EXPORT
-void getScreenSize_android(int *width, int *height) {
+DOTS_EXPORT(void)
+getScreenSize_android(int *width, int *height) {
     *width = windowW;
     *height = windowH;
 }
 
-ZEROPLAYER_EXPORT
-void getFramebufferSize_android(int *width, int *height) {
+DOTS_EXPORT(void)
+getFramebufferSize_android(int *width, int *height) {
     *width = windowW;
     *height = windowH;
 }
 
-ZEROPLAYER_EXPORT
-void getWindowFrameSize(int *left, int *top, int *right, int *bottom) {
+DOTS_EXPORT(void)
+getWindowFrameSize(int *left, int *top, int *right, int *bottom) {
     *left = *top = 0;
     *right = windowW;
     *bottom = windowH;
 }
 
-ZEROPLAYER_EXPORT
-void shutdown_android(int exitCode) {
+DOTS_EXPORT(void)
+shutdown_android(int exitCode) {
     // BS call something to kill app
     raf = 0;
 }
 
-ZEROPLAYER_EXPORT
-void resize_android(int width, int height) {
+DOTS_EXPORT(void)
+resize_android(int width, int height) {
     //glfwSetWindowSize(mainWindow, width, height);
     windowW = width;
     windowH = height;
 }
 
-ZEROPLAYER_EXPORT
-bool messagePump_android() {
+DOTS_EXPORT(bool)
+messagePump_android() {
     /*if (!mainWindow || shouldClose)
         return false;
     glfwMakeContextCurrent(mainWindow);
@@ -84,16 +84,16 @@ bool messagePump_android() {
     return !shouldClose;
 }
 
-ZEROPLAYER_EXPORT
-void swapBuffers_android() {
+DOTS_EXPORT(void)
+swapBuffers_android() {
     /*if (!mainWindow || shouldClose)
         return;
     glfwMakeContextCurrent(mainWindow);
     glfwSwapBuffers(mainWindow);*/
 }
 
-ZEROPLAYER_EXPORT
-double time_android() {
+DOTS_EXPORT(double)
+time_android() {
     static double start_time = -1;
     struct timespec res;
     clock_gettime(CLOCK_REALTIME, &res);
@@ -104,52 +104,52 @@ double time_android() {
     return t - start_time;
 }
 
-ZEROPLAYER_EXPORT
-void debugClear_android() {
+DOTS_EXPORT(void)
+debugClear_android() {
     glClearColor ( 1, (float)fabs(sin(time_android())),0,1 );
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
-ZEROPLAYER_EXPORT
-bool rafcallbackinit_android(bool (*func)()) {
+DOTS_EXPORT(bool)
+rafcallbackinit_android(bool (*func)()) {
     if (raf)
         return false;
     raf = func;
     return true;
 }
 
-ZEROPLAYER_EXPORT
-bool pausecallbacksinit_android(void (*func)(int)) {
+DOTS_EXPORT(bool)
+pausecallbacksinit_android(void (*func)(int)) {
     if (pausef)
         return false;
     pausef = func;
     return true;
 }
 
-ZEROPLAYER_EXPORT
-bool destroycallbacksinit_android(void (*func)()) {
+DOTS_EXPORT(bool)
+destroycallbacksinit_android(void (*func)()) {
     if (destroyf)
         return false;
     destroyf = func;
     return true;
 }
 
-ZEROPLAYER_EXPORT
-const int *get_touch_info_stream_android(int *len) {
+DOTS_EXPORT(const int*)
+get_touch_info_stream_android(int *len) {
     if (len == NULL)
         return NULL;
     *len = (int)touch_info_stream.size();
     return touch_info_stream.data();
 }
 
-ZEROPLAYER_EXPORT
-void reset_android_input()
+DOTS_EXPORT(void)
+reset_android_input()
 {
     touch_info_stream.clear();
 }
 
-ZEROPLAYER_EXPORT
-void debugReadback(int w, int h, void *pixels)
+DOTS_EXPORT(void)
+debugReadback(int w, int h, void *pixels)
 {
     if (w>windowW || h>windowH)
         return;
@@ -157,8 +157,8 @@ void debugReadback(int w, int h, void *pixels)
     glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
 }
 
-ZEROPLAYER_EXPORT
-int get_native_window_android() {
+DOTS_EXPORT(int)
+get_native_window_android() {
     return (int)nativeWindow ;
 }
 

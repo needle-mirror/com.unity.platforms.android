@@ -4,12 +4,9 @@
       "Unity.Entities",
       "Unity.Mathematics",
       "Unity.Tiny.Core",
-      "Unity.Tiny.Core2D",
       "Unity.Collections",
       "Unity.Tiny.Android",
-      "Unity.Tiny.Input",
-      "Unity.Tiny.Debugging",
-      "Unity.Entities.CPlusPlus"
+      "Unity.Tiny.Input"
     ],
     "optionalUnityReferences": [],
     "includePlatforms": [ "Android" ],

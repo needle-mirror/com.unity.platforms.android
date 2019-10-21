@@ -3,9 +3,7 @@
     "references": [
       "Unity.Entities",
       "Unity.Mathematics",
-      "Unity.Tiny.Core",
-      "Unity.Tiny.Core2D",
-      "Unity.Entities.CPlusPlus"
+      "Unity.Tiny.Core"
     ],
     "optionalUnityReferences": [],
     "includePlatforms": [ "Android" ],

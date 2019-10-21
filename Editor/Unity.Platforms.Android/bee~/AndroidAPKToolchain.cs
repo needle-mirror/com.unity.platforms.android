@@ -165,9 +165,9 @@ namespace Bee.Toolchain.Android
                 return deployedPath;
             }
 
-            var gradleProjectPath = buildPath.Combine("gradle/");
+            var gradleProjectPath = mainLibPath.Parent.Parent.Parent.Parent.Parent;
             var pathToRoot = new NPath(string.Concat(Enumerable.Repeat("../", gradleProjectPath.Depth)));
-            var apkSrcPath = BuildProgramConfigFile.AsmDefDescriptionFor("Unity.Platforms.Android").Path.Parent.Combine("AndroidProjectTemplate~/");
+            var apkSrcPath = AsmDefConfigFile.AsmDefDescriptionFor("Unity.Platforms.Android").Path.Parent.Combine("AndroidProjectTemplate~/");
 
             var javaLaunchPath = pathToRoot.Combine(m_apkToolchain.JavaPath).Combine("bin").Combine("java");
             var gradleLaunchPath = pathToRoot.Combine(m_apkToolchain.GradlePath).Combine("lib").Combine("gradle-launcher-4.6.jar");
@@ -224,13 +224,20 @@ namespace Bee.Toolchain.Android
             var localPropertiesPath = gradleProjectPath.Combine("local.properties");
             Backend.Current.AddWriteTextAction(localPropertiesPath, localProperties.ToString());
             Backend.Current.AddDependency(apkPath, localPropertiesPath);
+            var launchPropertiesPath = buildPath.Combine("local.properties");
+            Backend.Current.AddWriteTextAction(launchPropertiesPath, localProperties.ToString());
+            Backend.Current.AddDependency(apkPath, launchPropertiesPath);
 
             // copy additional resources and Data files
             // TODO: better to use move from main lib directory
             foreach (var r in m_supportFiles)
             {
                 var targetAssetPath = gradleProjectPath.Combine("src/main/assets");
-                if (r is DeployableFile && (r as DeployableFile).RelativeDeployPath != null)
+                if (r.Path.FileName == "testconfig.json")
+                {
+                    targetAssetPath = buildPath.Combine(r.Path.FileName);
+                }
+                else if (r is DeployableFile && (r as DeployableFile).RelativeDeployPath != null)
                 {
                     targetAssetPath = targetAssetPath.Combine((r as DeployableFile).RelativeDeployPath);
                 }
@@ -247,7 +254,7 @@ namespace Bee.Toolchain.Android
         public override BuiltNativeProgram DeployTo(NPath targetDirectory, Dictionary<IDeployable, IDeployable> alreadyDeployed = null)
         {
             // TODO: path should depend on toolchain (armv7/arm64)
-            var libDirectory = targetDirectory.Combine("gradle/src/main/jniLibs/armeabi-v7a");
+            var libDirectory = Path.Parent.Combine("gradle/src/main/jniLibs/armeabi-v7a");
             var result = base.DeployTo(libDirectory, alreadyDeployed);
 
             return new Executable(PackageApp(targetDirectory, result.Path));
