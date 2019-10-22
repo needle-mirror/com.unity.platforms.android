@@ -5,25 +5,11 @@ namespace Unity.Platforms.Android
 {
     public class AndroidBuildTarget : BuildTarget
     {
-        public override string GetDisplayName()
-        {
-            return "Android";
-        }
-
-        public override string GetBeeTargetName()
-        {
-            return "android_armv7";
-        }
-
-        public override string GetExecutableExtension()
-        {
-            return ".apk";
-        }
-
-        public override string GetUnityPlatformName()
-        {
-            return nameof(UnityEditor.BuildTarget.Android);
-        }
+        public override bool CanBuild => true;
+        public override string DisplayName => "Android";
+        public override string BeeTargetName => "android_armv7";
+        public override string ExecutableExtension => ".apk";
+        public override string UnityPlatformName => nameof(UnityEditor.BuildTarget.Android);
 
         private static string AdbName
         {
@@ -123,7 +109,7 @@ namespace Unity.Platforms.Android
         {
             ShellProcessOutput output;
             var adbPath = AdbPath(workingDirPath);
-            var executable = $"{workingDirPath}/{exeName}{GetExecutableExtension()}";
+            var executable = $"{workingDirPath}/{exeName}{ExecutableExtension}";
             if (adbPath != null)
             {
                 output = InstallApp(adbPath, executable, workingDirPath);
