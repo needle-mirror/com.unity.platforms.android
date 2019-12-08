@@ -1,5 +1,7 @@
 package com.unity3d.tinyplayer;
 
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.AssetManager;
@@ -15,6 +17,7 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
 {
     enum RunStateEvent { PAUSE, RESUME, QUIT, SURFACE_LOST, SURFACE_ACQUIRED, SURFACE_CHANGED, NEXT_FRAME };
     private static final int RUN_STATE_CHANGED_MSG_CODE = 2269;
+    private static final int ANR_TIMEOUT_SECONDS = 4;
 
     private class UnityTinyThread extends Thread
     {
@@ -78,12 +81,12 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
                     else if (runState == RunStateEvent.SURFACE_ACQUIRED)
                     {
                         Log.d(TAG, "Thread SURFACE_ACQUIRED");
-                        m_SurfaceAvailable = true;
                     }
                     else if (runState == RunStateEvent.SURFACE_CHANGED)
                     {
                         Log.d(TAG, "Thread SURFACE_CHANGED");
                         UnityTinyAndroidJNILib.init(m_Holder.getSurface(), msg.arg1, msg.arg2);
+                        m_SurfaceAvailable = true;
                     }
 
                     // trigger next frame
@@ -111,9 +114,12 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
             dispatchRunStateEvent(RunStateEvent.RESUME);
         }
 
-        public void pauseExecution()
+        public void pauseExecution(Runnable runnable)
         {
+            if (m_Handler == null)
+                return;
             dispatchRunStateEvent(RunStateEvent.PAUSE);
+            Message.obtain(m_Handler, runnable).sendToTarget();
         }
 
         public void surfaceLost()
@@ -178,7 +184,26 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
     public void onPause()
     {
         Log.d(TAG, "Pause");
-        m_Thread.pauseExecution();
+
+        final Semaphore synchronize = new Semaphore(0);
+
+        Runnable runnable = new Runnable() { public void run(){
+                synchronize.release();
+            }};
+
+        m_Thread.pauseExecution(runnable);
+
+        try
+        {
+            if (!synchronize.tryAcquire(ANR_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+            {
+                Log.w(TAG, "Timeout while trying to pause the Unity Engine.");
+            }
+        }
+        catch (InterruptedException e)
+        {
+            Log.w(TAG, "UI thread got interrupted while trying to pause the Unity Engine.");
+        }
     }
 
     public void onResume()

@@ -13,6 +13,5 @@ class CustomizerForTinyAndroid : AsmDefCSharpProgramCustomizer
     {
         program.NativeProgram.Libraries.Add(new SystemLibrary("log"));
         program.NativeProgram.Libraries.Add(new SystemLibrary("android"));
-        program.NativeProgram.Libraries.Add(new SystemLibrary("GLESv3"));
     }
 }

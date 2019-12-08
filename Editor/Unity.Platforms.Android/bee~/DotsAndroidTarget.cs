@@ -11,7 +11,7 @@ class DotsAndroidTargetArmv7 : DotsBuildSystemTarget
         return new AndroidApkMainModuleFormat(ToolChain as AndroidApkToolchain);
     }
 
-    protected override string Identifier => "android_armv7";
+    public override string Identifier => "android_armv7";
 
-    protected override ToolChain ToolChain => AndroidApkToolchain.ToolChain_AndroidArmv7;
+    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain();
 }

@@ -3,7 +3,9 @@
     "references": [
       "Unity.Entities",
       "Unity.Mathematics",
-      "Unity.Tiny.Core"
+      "Unity.Tiny.Core",
+      "Unity.Tiny.Rendering",
+      "Unity.Tiny.Rendering.Native"
     ],
     "optionalUnityReferences": [],
     "includePlatforms": [ "Android" ],

@@ -13,6 +13,7 @@ public class UnityTinyAndroidJNILib {
     public static native void pause(int paused);
     public static native void destroy();
     public static native void touchevent(int id, int action, int xpos, int ypos);
+    public static native void keyevent(int key, int scan, int action, int mods);
     public static void start() { start("lib**GAMENAME**.so"); }
     public static native void start(String name);
 }

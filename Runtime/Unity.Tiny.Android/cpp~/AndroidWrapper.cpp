@@ -15,8 +15,6 @@
 #include <time.h>
 #include <vector>
 #include <string>
-#include <GLES3/gl31.h>
-#include <GLES3/gl3ext.h>
 
 static void* m_libmain = NULL;
 static bool shouldClose = false;
@@ -26,6 +24,7 @@ static AAssetManager *nativeAssetManager = NULL;
 static ANativeWindow *nativeWindow = NULL;
 // input
 static std::vector<int> touch_info_stream;
+static std::vector<int> key_stream;
 // c# delegates
 static bool (*raf)() = 0;
 static void (*pausef)(int) = 0;
@@ -84,14 +83,6 @@ messagePump_android() {
     return !shouldClose;
 }
 
-DOTS_EXPORT(void)
-swapBuffers_android() {
-    /*if (!mainWindow || shouldClose)
-        return;
-    glfwMakeContextCurrent(mainWindow);
-    glfwSwapBuffers(mainWindow);*/
-}
-
 DOTS_EXPORT(double)
 time_android() {
     static double start_time = -1;
@@ -102,12 +93,6 @@ time_android() {
         start_time = t;
     }
     return t - start_time;
-}
-
-DOTS_EXPORT(void)
-debugClear_android() {
-    glClearColor ( 1, (float)fabs(sin(time_android())),0,1 );
-    glClear(GL_COLOR_BUFFER_BIT);
 }
 
 DOTS_EXPORT(bool)
@@ -142,24 +127,23 @@ get_touch_info_stream_android(int *len) {
     return touch_info_stream.data();
 }
 
+DOTS_EXPORT(const int *)
+get_key_stream_android(int *len)
+{
+    *len = (int)key_stream.size();
+    return key_stream.data();
+}
+
 DOTS_EXPORT(void)
 reset_android_input()
 {
     touch_info_stream.clear();
+    key_stream.clear();
 }
 
-DOTS_EXPORT(void)
-debugReadback(int w, int h, void *pixels)
-{
-    if (w>windowW || h>windowH)
-        return;
-    //glfwMakeContextCurrent(mainWindow);
-    glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
-}
-
-DOTS_EXPORT(int)
+DOTS_EXPORT(int64_t)
 get_native_window_android() {
-    return (int)nativeWindow ;
+    return (int64_t)nativeWindow ;
 }
 
 extern "C"
@@ -184,7 +168,7 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_start(
 }
 
 extern "C"
-JNIEXPORT void* loadAsset(const char *path, int *size)
+JNIEXPORT void* loadAssetInternal(const char *path, int *size)
 {
     AAsset* asset = AAssetManager_open(nativeAssetManager, path, AASSET_MODE_STREAMING);
     if (asset == NULL)
@@ -258,4 +242,14 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_touche
     touch_info_stream.push_back((int)action);
     touch_info_stream.push_back((int)xpos);
     touch_info_stream.push_back(windowH - 1 - (int)ypos);
+}
+
+extern "C"
+JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_keyevent(JNIEnv* env, jobject obj, jint key, jint scancode, jint action, jint mods)
+{
+    __android_log_print(ANDROID_LOG_INFO, "AndroidWrapper", "Key %d scancode %d action %d mods %d\n", key, scancode, action, mods);
+    key_stream.push_back(key);
+    key_stream.push_back(scancode);
+    key_stream.push_back(action);
+    key_stream.push_back(mods);
 }

@@ -5,9 +5,11 @@ using System.Runtime.InteropServices;
 using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Tiny.Rendering;
 
 namespace Unity.Tiny.Android
 {
+    [UpdateInGroup(typeof(InitializationSystemGroup))]
     public class AndroidWindowSystem : WindowSystem
     {
         private static AndroidWindowSystem sWindowSystem;
@@ -22,9 +24,28 @@ namespace Unity.Tiny.Android
             return (IntPtr)AndroidNativeCalls.getNativeWindow();
         }
 
-        /*TODO how we can inform RunLoop about system events pause/resume/destroy?
+        internal class MonoPInvokeCallbackAttribute : Attribute
+        {
+        }
+
         public delegate void OnPauseDelegate(int pause);
 
+        [MonoPInvokeCallbackAttribute]
+        static void ManagedOnPauseCallback(int pause)
+        {
+            var renderSystem = sWindowSystem.World.GetExistingSystem<RendererBGFXSystem>();
+            if (renderSystem != null)
+            {
+                renderSystem.Pause(pause != 0);
+            }
+        }
+
+        public void SetOnPauseCallback()
+        {
+            AndroidNativeCalls.set_pause_callback(Marshal.GetFunctionPointerForDelegate((OnPauseDelegate)ManagedOnPauseCallback));
+        }
+
+        /*TODO how we can inform RunLoop about system events pause/resume/destroy?
         private static OnPauseDelegate onPauseM;
 
         [MonoPInvokeCallbackAttribute]
@@ -33,22 +54,18 @@ namespace Unity.Tiny.Android
             onPauseM(pause);
         }
 
+        public void SetOnPauseCallback(OnPauseDelegate m)
+        {
+            onPauseM = m;
+            AndroidNativeCalls.set_pause_callback(Marshal.GetFunctionPointerForDelegate((OnPauseDelegate)ManagedOnPauseCallback));
+        }
+
         private static Action onDestroyM;
 
         [MonoPInvokeCallbackAttribute]
         static void ManagedOnDestroyCallback()
         {
             onDestroyM();
-        }
-
-        internal class MonoPInvokeCallbackAttribute : Attribute
-        {
-        }
-
-        public void SetOnPauseCallback(OnPauseDelegate m)
-        {
-            onPauseM = m;
-            AndroidNativeCalls.set_pause_callback(Marshal.GetFunctionPointerForDelegate((OnPauseDelegate)ManagedOnPauseCallback));
         }
 
         public void SetOnDestroyCallback(Action m)
@@ -60,16 +77,7 @@ namespace Unity.Tiny.Android
 
         public override void DebugReadbackImage(out int w, out int h, out NativeArray<byte> pixels)
         {
-            var env = World.GetExistingSystem<TinyEnvironment>();
-            var config = env.GetConfigData<DisplayInfo>();
-            pixels = new NativeArray<byte>(config.framebufferWidth*config.framebufferHeight*4, Allocator.Persistent);
-            unsafe
-            {
-                AndroidNativeCalls.debugReadback(config.framebufferWidth, config.framebufferHeight, pixels.GetUnsafePtr());
-            }
-
-            w = config.framebufferWidth;
-            h = config.framebufferHeight;
+            throw new InvalidOperationException("Can no longer read-back from window use BGFX instead.");
         }
 
         protected override void OnStartRunning()
@@ -96,6 +104,9 @@ namespace Unity.Tiny.Android
                 World.QuitUpdate = true;
                 return;
             }
+
+            SetOnPauseCallback();
+
             int winw = 0, winh = 0;
             AndroidNativeCalls.getWindowSize(ref winw, ref winh);
             config.focused = true;
@@ -134,6 +145,11 @@ namespace Unity.Tiny.Android
             if (!initialized)
                 return;
 
+#if UNITY_DOTSPLAYER
+            Unity.Profiling.Profiler.FrameEnd();
+            Unity.Profiling.Profiler.FrameBegin();
+#endif
+
             var env = World.GetExistingSystem<TinyEnvironment>();
             var config = env.GetConfigData<DisplayInfo>();
             int winw = 0, winh = 0;
@@ -167,9 +183,6 @@ namespace Unity.Tiny.Android
                 initialized = false;
                 return;
             }
-#if DEBUG
-            AndroidNativeCalls.debugClear();
-#endif
             double newFrameTime = AndroidNativeCalls.time();
             var timeData = env.StepWallRealtimeFrame(newFrameTime - frameTime);
             World.SetTime(timeData);
@@ -208,15 +221,6 @@ namespace Unity.Tiny.Android
         [return: MarshalAs(UnmanagedType.I1)]
         public static extern bool messagePump();
 
-        [DllImport("lib_unity_tiny_android", EntryPoint = "swapBuffers_android")]
-        public static extern void swapBuffers();
-
-        [DllImport("lib_unity_tiny_android", EntryPoint = "debugClear_android")]
-        public static extern void debugClear();
-
-        [DllImport("lib_unity_tiny_android", EntryPoint = "debugReadback_android")]
-        public static unsafe extern void debugReadback(int w, int h, void *pixels);
-
         [DllImport("lib_unity_tiny_android", EntryPoint = "time_android")]
         public static extern double time();
 
@@ -229,8 +233,11 @@ namespace Unity.Tiny.Android
         [DllImport("lib_unity_tiny_android", EntryPoint = "get_touch_info_stream_android")]
         public static extern unsafe int * getTouchInfoStream(ref int len);
 
+        [DllImport("lib_unity_tiny_android", EntryPoint = "get_key_stream_android")]
+        public static extern unsafe int * getKeyStream(ref int len);
+
         [DllImport("lib_unity_tiny_android", EntryPoint = "get_native_window_android")]
-        public static extern int getNativeWindow();
+        public static extern long getNativeWindow();
 
         [DllImport("lib_unity_tiny_android", EntryPoint = "reset_android_input")]
         public static extern void resetStreams();

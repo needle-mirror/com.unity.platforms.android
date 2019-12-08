@@ -8,6 +8,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.KeyEvent;
 import android.content.res.AssetManager;
 
 import java.io.File;
@@ -68,5 +69,21 @@ public class UnityTinyActivity extends Activity {
         mView.onDestroy();
         super.onDestroy();
         Process.killProcess(Process.myPid());
+    }
+
+    @Override public boolean onKeyUp(int keyCode, KeyEvent event)
+    {
+        UnityTinyAndroidJNILib.keyevent(event.getKeyCode(), event.getScanCode(), event.getAction(), event.getMetaState());
+        // volume up/down keys need to be processed by system
+        return event.getKeyCode() != KeyEvent.KEYCODE_VOLUME_DOWN &&
+               event.getKeyCode() != KeyEvent.KEYCODE_VOLUME_UP;
+    }
+
+    @Override public boolean onKeyDown(int keyCode, KeyEvent event)
+    {
+        UnityTinyAndroidJNILib.keyevent(event.getKeyCode(), event.getScanCode(), event.getAction(), event.getMetaState());
+        // volume up/down keys need to be processed by system
+        return event.getKeyCode() != KeyEvent.KEYCODE_VOLUME_DOWN &&
+               event.getKeyCode() != KeyEvent.KEYCODE_VOLUME_UP;
     }
 }
