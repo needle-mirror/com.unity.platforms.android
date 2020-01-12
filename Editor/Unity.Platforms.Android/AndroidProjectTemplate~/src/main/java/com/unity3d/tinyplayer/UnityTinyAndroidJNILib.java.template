@@ -4,7 +4,7 @@ package com.unity3d.tinyplayer;
 public class UnityTinyAndroidJNILib {
 
     static {
-        System.loadLibrary("_unity_tiny_android");
+        System.loadLibrary("**TINYLIBNAME**");
     }
 
     public static native void init(Object surface, int width, int height);

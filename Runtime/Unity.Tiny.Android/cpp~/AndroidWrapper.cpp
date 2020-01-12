@@ -168,7 +168,7 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_start(
 }
 
 extern "C"
-JNIEXPORT void* loadAssetInternal(const char *path, int *size)
+JNIEXPORT void* loadAsset(const char *path, int *size, void* (*alloc)(size_t))
 {
     AAsset* asset = AAssetManager_open(nativeAssetManager, path, AASSET_MODE_STREAMING);
     if (asset == NULL)
@@ -179,7 +179,7 @@ JNIEXPORT void* loadAssetInternal(const char *path, int *size)
     else
     {
         *size = (int)AAsset_getLength(asset);
-        void* data = malloc(*size);
+        void* data = alloc(*size);
         unsigned char *ptr = (unsigned char*)data;
         int remaining = (int)AAsset_getRemainingLength(asset);
         int nb_read = 0;

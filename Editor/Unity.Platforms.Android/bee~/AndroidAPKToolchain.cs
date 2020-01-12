@@ -38,7 +38,7 @@ namespace Bee.Toolchain.Android
             public string GradlePath;
         }
 
-        public static AndroidApkToolchain GetToolChain()
+        public static AndroidApkToolchain GetToolChain(bool useStatic)
         {
             if (ToolChain_AndroidArmv7 == null)
             {
@@ -46,7 +46,7 @@ namespace Bee.Toolchain.Android
                 var androidNdk = string.IsNullOrEmpty(androidConfig.NdkPath) ?
                     AndroidNdk.LocatorArmv7.UserDefaultOrDummy:
                     AndroidNdk.LocatorArmv7.UseSpecific(androidConfig.NdkPath);
-                ToolChain_AndroidArmv7 = new AndroidApkToolchain(androidNdk, androidConfig.SdkPath, androidConfig.JavaPath, androidConfig.GradlePath);
+                ToolChain_AndroidArmv7 = new AndroidApkToolchain(androidNdk, androidConfig.SdkPath, androidConfig.JavaPath, androidConfig.GradlePath, useStatic);
             }
             return ToolChain_AndroidArmv7;
         }
@@ -68,11 +68,12 @@ namespace Bee.Toolchain.Android
             };
         }
 
-        public AndroidApkToolchain(AndroidNdk ndk, string sdkPath, string javaPath, string gradlePath) : base(ndk)
+        public AndroidApkToolchain(AndroidNdk ndk, string sdkPath, string javaPath, string gradlePath, bool useStatic) : base(ndk)
         {
-            DynamicLibraryFormat = new AndroidApkDynamicLibraryFormat(this);
+            DynamicLibraryFormat = useStatic ? new AndroidApkStaticLibraryFormat(this) as NativeProgramFormat :
+                                               new AndroidApkDynamicLibraryFormat(this) as NativeProgramFormat;
             ExecutableFormat = new AndroidApkMainModuleFormat(this);
-            CppCompiler = new AndroidNdkCompilerNoThumb(ActionName, Architecture, Platform, Sdk, ndk.ApiLevel);
+            CppCompiler = new AndroidNdkCompilerNoThumb(ActionName, Architecture, Platform, Sdk, ndk.ApiLevel, useStatic);
             SdkPath = sdkPath;
             JavaPath = javaPath;
             GradlePath = gradlePath;
@@ -84,53 +85,15 @@ namespace Bee.Toolchain.Android
             if (launcherFiles.Length == 1)
                 return launcherFiles[0];
             return null;
-            }
-    }
-
-    internal class AndroidLinker : LdDynamicLinker
-    {
-        // workaround arm64 issue (https://issuetracker.google.com/issues/70838247)
-        protected override string LdLinkerName => Toolchain.Architecture is Arm64Architecture ? "bfd" : "gold";
-
-        public AndroidLinker(AndroidNdkToolchain toolchain) : base(toolchain, true) {}
-
-        protected override IEnumerable<string> CommandLineFlagsFor(NPath target, CodeGen codegen, IEnumerable<NPath> inputFiles)
-        {
-            foreach (var flag in base.CommandLineFlagsFor(target, codegen, inputFiles))
-                yield return flag;
-
-            var ndk = (AndroidNdk)Toolchain.Sdk;
-            foreach (var flag in ndk.LinkerCommandLineFlagsFor(target, codegen, inputFiles))
-                yield return flag;
-
-            if (LdLinkerName == "gold" && codegen != CodeGen.Debug)
-            {
-                // enable identical code folding (saves ~500k (3%) of Android mono release library as of May 2018)
-                yield return "-Wl,--icf=safe";
-
-                // redo folding multiple times (default is 2, saves 13k of Android mono release library as of May 2018)
-                yield return "-Wl,--icf-iterations=5";
-            }
-            if (codegen != CodeGen.Debug)
-            {
-                // why it hasn't been added originally?
-                yield return "-Wl,--strip-all";
-            }
-        }
-
-        protected override BuiltNativeProgram BuiltNativeProgramFor(NPath destination, IEnumerable<PrecompiledLibrary> allLibraries)
-        {
-            var dynamicLibraries = allLibraries.Where(l => l.Dynamic).ToArray();
-            return (BuiltNativeProgram) new DynamicLibrary(destination, dynamicLibraries);
         }
     }
 
     internal class AndroidNdkCompilerNoThumb : AndroidNdkCompiler
     {
-        public AndroidNdkCompilerNoThumb(string actionNameSuffix, Architecture targetArchitecture, Platform targetPlatform, Sdk sdk, int apiLevel)
+        public AndroidNdkCompilerNoThumb(string actionNameSuffix, Architecture targetArchitecture, Platform targetPlatform, Sdk sdk, int apiLevel, bool useStatic)
             : base(actionNameSuffix, targetArchitecture, targetPlatform, sdk, apiLevel)
         {
-            DefaultSettings = new AndroidNdkCompilerSettingsNoThumb(this, apiLevel)
+            DefaultSettings = new AndroidNdkCompilerSettingsNoThumb(this, apiLevel, useStatic)
                 .WithExplicitlyRequireCPlusPlusIncludes(((AndroidNdk)sdk).GnuBinutils)
                 .WithPositionIndependentCode(true);
         }
@@ -138,8 +101,9 @@ namespace Bee.Toolchain.Android
 
     public class AndroidNdkCompilerSettingsNoThumb : AndroidNdkCompilerSettings
     {
-        public AndroidNdkCompilerSettingsNoThumb(AndroidNdkCompiler gccCompiler, int apiLevel) : base(gccCompiler, apiLevel)
+        public AndroidNdkCompilerSettingsNoThumb(AndroidNdkCompiler gccCompiler, int apiLevel, bool useStatic) : base(gccCompiler, apiLevel)
         {
+            UseStatic = useStatic;
         }
 
         public override IEnumerable<string> CommandLineFlagsFor(NPath target)
@@ -152,12 +116,95 @@ namespace Bee.Toolchain.Android
                 else
                     yield return flag;
             }
+            if (UseStatic)
+            {
+                yield return "-DSTATIC_LINKING";
+            }
+        }
+
+        private bool UseStatic { get; set; }
+    }
+
+    // TODO make LLVMArStaticLinkerForAndroid public and use it as base class here to avoid code duplication
+    internal class AndroidStaticLinker : StaticLinker
+    {
+        protected override bool SupportsResponseFile => true;
+
+        private static NPath MriScriptFor(NPath destination) => destination.ChangeExtension("mri");
+
+        public AndroidStaticLinker(ToolChain toolchain) : base(toolchain)
+        {
+        }
+
+        protected override IEnumerable<string> CommandLineFlagsForLibrary(PrecompiledLibrary library, CodeGen codegen)
+            => Array.Empty<string>();
+
+        protected override IEnumerable<string> CommandLineFlagsFor(NPath destination, CodeGen codegen, IEnumerable<NPath> objectFiles)
+        {
+            if (!BundleStaticLibraryDependencies)
+            {
+                yield return "rcsu";
+
+                yield return destination.InQuotes();
+
+                foreach (var objectFile in objectFiles)
+                    yield return objectFile.InQuotes();
+                yield break;
+            }
+
+            yield return $"-M < {MriScriptFor(destination).InQuotes()}";
+        }
+
+        protected override IEnumerable<NPath> InputFilesFor(NPath destination, CodeGen codegen, IEnumerable<NPath> objectFiles, IEnumerable<PrecompiledLibrary> allLibraries)
+        {
+            foreach (var input in base.InputFilesFor(destination, codegen, objectFiles, allLibraries))
+                yield return input;
+
+            if (!BundleStaticLibraryDependencies)
+                yield break;
+
+            // "ar" does not have an easy way of adding contents of a static library
+            // into a destination library; the only way to get that is through "MRI scripts".
+            // So setup the MRI script and use it in ar invocation.
+            var sb = new StringBuilder();
+            sb.AppendLine($"create {destination}");
+            foreach (var l in allLibraries.Where(l => l.Static))
+                sb.AppendLine($"addlib {l}");
+            foreach (var o in objectFiles)
+                sb.AppendLine($"addmod {o}");
+            sb.AppendLine("save");
+            sb.AppendLine("end");
+            sb.AppendLine();
+
+            var mriScript = MriScriptFor(destination);
+            Backend.Current.AddWriteTextAction(mriScript, sb.ToString());
+            yield return mriScript;
+        }
+
+        protected override BuiltNativeProgram BuiltNativeProgramFor(NPath destination, IEnumerable<PrecompiledLibrary> allLibraries)
+        {
+            //var staticLibraries = allLibraries.Where(l => l.Static).ToArray();
+            return (BuiltNativeProgram) new AndroidApkStaticLibrary(destination, allLibraries.ToArray());
         }
     }
 
-    internal class AndroidMainModuleLinker : AndroidLinker
+    internal class AndroidApkStaticLibrary : StaticLibrary
     {
-        public AndroidMainModuleLinker(AndroidNdkToolchain toolchain) : base(toolchain) { }
+        public AndroidApkStaticLibrary(NPath path, PrecompiledLibrary[] libraryDependencies = null) : base(path, libraryDependencies)
+        {
+            SystemLibraries = libraryDependencies.Where(l => l.System).ToArray();
+        }
+
+        public PrecompiledLibrary[] SystemLibraries { get; private set; }
+    }
+
+    // TODO make AndroidDynamicLinker non-sealed and use it as base class here to avoid code duplication
+    internal class AndroidMainModuleLinker : LdDynamicLinker
+    {
+        // workaround arm64 issue (https://issuetracker.google.com/issues/70838247)
+        protected override string LdLinkerName => Toolchain.Architecture is Arm64Architecture ? "bfd" : "gold";
+
+        public AndroidMainModuleLinker(AndroidNdkToolchain toolchain) : base(toolchain, true) { }
 
         private NPath ChangeMainModuleName(NPath target)
         {
@@ -165,10 +212,64 @@ namespace Bee.Toolchain.Android
             return target.Parent.Combine("lib" + target.FileName).ChangeExtension("so");
         }
 
+        public override BuiltNativeProgram CombineObjectFiles(NPath destination, CodeGen codegen, IEnumerable<NPath> objectFiles, IEnumerable<PrecompiledLibrary> allLibraries)
+        {
+            var requiredLibraries = allLibraries.ToList();
+            foreach (var l in allLibraries.OfType<AndroidApkStaticLibrary>())
+            {
+                foreach (var sl in l.SystemLibraries)
+                {
+                    if (!requiredLibraries.Contains(sl)) requiredLibraries.Add(sl);
+                }
+            }
+            return base.CombineObjectFiles(destination, codegen, objectFiles, requiredLibraries);
+        }
+
+        protected override IEnumerable<string> CommandLineFlagsForLibrary(PrecompiledLibrary library, CodeGen codegen)
+        {
+            // if lib which contains all JNI code is linked statically, then all methods from this lib should be exposed
+            var entryPoint = library.ToString().Contains("lib_unity_tiny_android.a");
+            if (entryPoint)
+            {
+                yield return "-Wl,--whole-archive";
+            }
+            foreach (var flag in base.CommandLineFlagsForLibrary(library, codegen))
+            {
+                yield return flag;
+            }
+            if (entryPoint)
+            {
+                yield return "-Wl,--no-whole-archive";
+            }
+        }
+
         protected override IEnumerable<string> CommandLineFlagsFor(NPath target, CodeGen codegen, IEnumerable<NPath> inputFiles)
         {
             foreach (var flag in base.CommandLineFlagsFor(ChangeMainModuleName(target), codegen, inputFiles))
+            {
                 yield return flag;
+            }
+
+            var ndk = (AndroidNdk)Toolchain.Sdk;
+            foreach (var flag in ndk.LinkerCommandLineFlagsFor(ChangeMainModuleName(target), codegen, inputFiles))
+            {
+                yield return flag;
+            }
+
+            if (LdLinkerName == "gold" && codegen != CodeGen.Debug)
+            {
+                // enable identical code folding (saves ~500k   (3%) of Android mono release library as of May 2018)
+                yield return "-Wl,--icf=safe";
+
+                // redo folding multiple times (default is 2, saves 13k of Android mono release library as of May 2018)
+                yield return "-Wl,--icf-iterations=5";
+            }
+            if (codegen != CodeGen.Debug)
+            {
+                // why it hasn't been added originally?
+                yield return "-Wl,--strip-all";
+            }
+
         }
 
         protected override BuiltNativeProgram BuiltNativeProgramFor(NPath destination, IEnumerable<PrecompiledLibrary> allLibraries)
@@ -182,8 +283,19 @@ namespace Bee.Toolchain.Android
     {
         public override string Extension { get; } = "so";
 
+        // TODO uncomment WithStripAll when bee.exe which supports this method for AndroidDynamicLinker is available
         internal AndroidApkDynamicLibraryFormat(AndroidNdkToolchain toolchain) : base(
-            new AndroidLinker(toolchain).AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
+            new AndroidDynamicLinker(toolchain)/*.WithStripAll(true)*/.AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
+        {
+        }
+    }
+
+    internal sealed class AndroidApkStaticLibraryFormat : NativeProgramFormat
+    {
+        public override string Extension { get; } = "a";
+
+        internal AndroidApkStaticLibraryFormat(AndroidNdkToolchain toolchain) : base(
+            new AndroidStaticLinker(toolchain))
         {
         }
     }
@@ -249,8 +361,10 @@ namespace Bee.Toolchain.Android
                 allowedOutputSubstrings: new[] { ":*", "BUILD SUCCESSFUL in *" }
             );
 
+            bool useStaticLib = Deployables.FirstOrDefault(l => l.ToString().Contains("lib_unity_tiny_android.so")) == default(IDeployable);
             var templateStrings = new Dictionary<string, string>
             {
+                { "**TINYLIBNAME**", useStaticLib ? m_gameName : "_unity_tiny_android" },
                 { "**TINYNAME**", m_gameName.Replace("-","").ToLower() },
                 { "**GAMENAME**", m_gameName },
             };
