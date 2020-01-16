@@ -125,60 +125,10 @@ namespace Bee.Toolchain.Android
         private bool UseStatic { get; set; }
     }
 
-    // TODO make LLVMArStaticLinkerForAndroid public and use it as base class here to avoid code duplication
-    internal class AndroidStaticLinker : StaticLinker
+    internal class AndroidStaticLinker : LLVMArStaticLinkerForAndroid
     {
-        protected override bool SupportsResponseFile => true;
-
-        private static NPath MriScriptFor(NPath destination) => destination.ChangeExtension("mri");
-
         public AndroidStaticLinker(ToolChain toolchain) : base(toolchain)
         {
-        }
-
-        protected override IEnumerable<string> CommandLineFlagsForLibrary(PrecompiledLibrary library, CodeGen codegen)
-            => Array.Empty<string>();
-
-        protected override IEnumerable<string> CommandLineFlagsFor(NPath destination, CodeGen codegen, IEnumerable<NPath> objectFiles)
-        {
-            if (!BundleStaticLibraryDependencies)
-            {
-                yield return "rcsu";
-
-                yield return destination.InQuotes();
-
-                foreach (var objectFile in objectFiles)
-                    yield return objectFile.InQuotes();
-                yield break;
-            }
-
-            yield return $"-M < {MriScriptFor(destination).InQuotes()}";
-        }
-
-        protected override IEnumerable<NPath> InputFilesFor(NPath destination, CodeGen codegen, IEnumerable<NPath> objectFiles, IEnumerable<PrecompiledLibrary> allLibraries)
-        {
-            foreach (var input in base.InputFilesFor(destination, codegen, objectFiles, allLibraries))
-                yield return input;
-
-            if (!BundleStaticLibraryDependencies)
-                yield break;
-
-            // "ar" does not have an easy way of adding contents of a static library
-            // into a destination library; the only way to get that is through "MRI scripts".
-            // So setup the MRI script and use it in ar invocation.
-            var sb = new StringBuilder();
-            sb.AppendLine($"create {destination}");
-            foreach (var l in allLibraries.Where(l => l.Static))
-                sb.AppendLine($"addlib {l}");
-            foreach (var o in objectFiles)
-                sb.AppendLine($"addmod {o}");
-            sb.AppendLine("save");
-            sb.AppendLine("end");
-            sb.AppendLine();
-
-            var mriScript = MriScriptFor(destination);
-            Backend.Current.AddWriteTextAction(mriScript, sb.ToString());
-            yield return mriScript;
         }
 
         protected override BuiltNativeProgram BuiltNativeProgramFor(NPath destination, IEnumerable<PrecompiledLibrary> allLibraries)
@@ -198,13 +148,9 @@ namespace Bee.Toolchain.Android
         public PrecompiledLibrary[] SystemLibraries { get; private set; }
     }
 
-    // TODO make AndroidDynamicLinker non-sealed and use it as base class here to avoid code duplication
-    internal class AndroidMainModuleLinker : LdDynamicLinker
+    internal class AndroidMainModuleLinker : AndroidDynamicLinker
     {
-        // workaround arm64 issue (https://issuetracker.google.com/issues/70838247)
-        protected override string LdLinkerName => Toolchain.Architecture is Arm64Architecture ? "bfd" : "gold";
-
-        public AndroidMainModuleLinker(AndroidNdkToolchain toolchain) : base(toolchain, true) { }
+        public AndroidMainModuleLinker(AndroidNdkToolchain toolchain) : base(toolchain) { }
 
         private NPath ChangeMainModuleName(NPath target)
         {
@@ -249,27 +195,6 @@ namespace Bee.Toolchain.Android
             {
                 yield return flag;
             }
-
-            var ndk = (AndroidNdk)Toolchain.Sdk;
-            foreach (var flag in ndk.LinkerCommandLineFlagsFor(ChangeMainModuleName(target), codegen, inputFiles))
-            {
-                yield return flag;
-            }
-
-            if (LdLinkerName == "gold" && codegen != CodeGen.Debug)
-            {
-                // enable identical code folding (saves ~500k   (3%) of Android mono release library as of May 2018)
-                yield return "-Wl,--icf=safe";
-
-                // redo folding multiple times (default is 2, saves 13k of Android mono release library as of May 2018)
-                yield return "-Wl,--icf-iterations=5";
-            }
-            if (codegen != CodeGen.Debug)
-            {
-                // why it hasn't been added originally?
-                yield return "-Wl,--strip-all";
-            }
-
         }
 
         protected override BuiltNativeProgram BuiltNativeProgramFor(NPath destination, IEnumerable<PrecompiledLibrary> allLibraries)
@@ -285,7 +210,7 @@ namespace Bee.Toolchain.Android
 
         // TODO uncomment WithStripAll when bee.exe which supports this method for AndroidDynamicLinker is available
         internal AndroidApkDynamicLibraryFormat(AndroidNdkToolchain toolchain) : base(
-            new AndroidDynamicLinker(toolchain)/*.WithStripAll(true)*/.AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
+            new AndroidDynamicLinker(toolchain).WithStripAll(true).AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
         {
         }
     }
@@ -305,7 +230,7 @@ namespace Bee.Toolchain.Android
         public override string Extension { get; } = "apk";
 
         internal AndroidApkMainModuleFormat(AndroidNdkToolchain toolchain) : base(
-            new AndroidMainModuleLinker(toolchain).AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
+            new AndroidMainModuleLinker(toolchain).WithStripAll(true).AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
         {
         }
     }

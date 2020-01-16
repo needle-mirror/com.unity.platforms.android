@@ -4,6 +4,23 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-preview.3] - 2020-01-17
+
+### Changed
+* Updated `com.unity.platforms` package to version `0.2.0-preview.2`.
+
+## [0.2.0-preview.2] - 2020-01-16
+
+### Fixed
+* Fix warning "Couldn't delete Packages/com.unity.platforms.android/Editor/Unity.Build.Android.meta because it's in an immutable folder."
+
+## [0.2.0-preview.1] - 2020-01-15
+
+### Added
+* Suspend/Resume/Quit events support
+* Android toolchain code simplified
+* Updated `com.unity.platforms` package to version `0.2.0-preview.1`.
+
 ## [0.2.0-preview] - 2020-01-13
 
 ### Changed
