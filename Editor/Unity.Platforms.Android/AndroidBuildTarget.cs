@@ -46,7 +46,7 @@ namespace Unity.Platforms.Android
             {
                 ThrowOnError = false,
                 Executable = adbPath,
-                Arguments = new string[] { "install", apkName },
+                Arguments = new string[] { "install", "\"" + apkName + "\"" },
                 WorkingDirectory = new DirectoryInfo(buildDir)
             });
         }
