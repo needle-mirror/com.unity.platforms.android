@@ -1,9 +1,9 @@
 {
     "BuildSteps": [
-        "Unity.Platforms.Build.Classic.SaveScenesAndAssets, Unity.Platforms.Build.Classic",
-        "Unity.Platforms.Build.Classic.BuildStepApplyPlayerSettings, Unity.Platforms.Build.Classic",
-        "Unity.Platforms.Build.Classic.BuildStepSwitchPlatfomClassic, Unity.Platforms.Build.Classic",
-        "Unity.Platforms.Build.Classic.BuildStepBuildClassicPlayer, Unity.Platforms.Build.Classic",
+        "Unity.Build.Classic.SaveScenesAndAssets, Unity.Build.Classic",
+        "Unity.Build.Classic.BuildStepApplyPlayerSettings, Unity.Build.Classic",
+        "Unity.Build.Classic.BuildStepSwitchPlatfomClassic, Unity.Build.Classic",
+        "Unity.Build.Classic.BuildStepBuildClassicPlayer, Unity.Build.Classic",
         "Unity.Platforms.Android.Build.BuildStepProduceAndroidArtifacts, Unity.Platforms.Android.Build"
     ],
     "RunStep": "Unity.Platforms.Android.Build.RunStepAndroid, Unity.Platforms.Android.Build"

@@ -1,10 +1,10 @@
 {
     "name": "Unity.Platforms.Android.Build",
     "references": [
-        "Unity.Platforms.Build",
-        "Unity.Platforms.Build.Classic",
-        "Unity.Platforms.Build.Common",
-        "Unity.Platforms.Build.Editor",
+        "Unity.Build",
+        "Unity.Build.Classic",
+        "Unity.Build.Common",
+        "Unity.Build.Editor",
         "Unity.Properties",
         "Unity.Properties.Editor"
     ],

@@ -1,5 +1,5 @@
 using System.IO;
-using Unity.Platforms.Build;
+using Unity.Build;
 
 #if UNITY_ANDROID
 using System;

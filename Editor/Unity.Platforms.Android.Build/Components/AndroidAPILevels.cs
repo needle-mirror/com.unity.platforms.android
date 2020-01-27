@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Platforms.Build;
+using Unity.Build;
 using Unity.Properties;
 
 namespace Unity.Platforms.Android.Build

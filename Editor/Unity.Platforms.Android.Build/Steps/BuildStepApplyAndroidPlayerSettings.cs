@@ -1,5 +1,5 @@
-﻿using Unity.Platforms.Build;
-using Unity.Platforms.Build.Classic;
+﻿using Unity.Build;
+using Unity.Build.Classic;
 using UnityEditor;
 
 namespace Unity.Platforms.Android.Build
