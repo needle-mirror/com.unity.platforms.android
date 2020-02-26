@@ -16,4 +16,6 @@ public class UnityTinyAndroidJNILib {
     public static native void keyevent(int key, int scan, int action, int mods);
     public static void start() { start("lib**GAMENAME**.so"); }
     public static native void start(String name);
+    public static native void screenOrientationChanged(int orientation);
+    public static native void deviceOrientationChanged(int orientation);
 }

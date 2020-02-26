@@ -8,19 +8,31 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.Surface;
 import android.view.KeyEvent;
+import android.view.OrientationEventListener;
+import android.hardware.SensorManager;
+import android.content.Context;
 import android.content.res.AssetManager;
-
+import android.content.res.Configuration;
+import android.content.pm.ActivityInfo;
 import java.io.File;
 
 public class UnityTinyActivity extends Activity {
 
+    static UnityTinyActivity sActivity;
+
     UnityTinyView mView;
     AssetManager mAssetManager;
+    OrientationEventListener mOrientationListener;
+    WindowManager mWindowManager;
+
+    private static String TAG = "UnityTinyActivity";
 
     @Override protected void onCreate(Bundle bundle) {
         super.onCreate(bundle);
 
+        sActivity = this;
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         mAssetManager = getAssets();
         mView = new UnityTinyView(mAssetManager, getCacheDir().getAbsolutePath(), this);
@@ -53,6 +65,33 @@ public class UnityTinyActivity extends Activity {
         });
         setContentView(mView);
         mView.requestFocus();
+
+        mOrientationListener = new OrientationEventListener(this, SensorManager.SENSOR_DELAY_NORMAL) {
+
+            @Override
+            public void onOrientationChanged(int angle)
+            {
+                processOrientationChange(angle);
+            }
+        };
+
+        if (mOrientationListener.canDetectOrientation())
+        {
+            mOrientationListener.enable();
+        }
+        else
+        {
+            Log.v(TAG, "Cannot detect orientation");
+            mOrientationListener.disable();
+        }
+
+        mWindowManager = (WindowManager)getSystemService(Context.WINDOW_SERVICE);
+        Configuration config = getResources().getConfiguration();
+        mNaturalOrientation = getNaturalOrientation(config.orientation);
+        Log.d(TAG, "Natural device orientation: " + (mNaturalOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE ? "Landscape" : "Portrait"));
+        mDeviceOrientation = getActualOrientation(config.orientation);
+        UnityTinyAndroidJNILib.screenOrientationChanged(mDeviceOrientation);
+        UnityTinyAndroidJNILib.deviceOrientationChanged(mDeviceOrientation);
     }
 
     @Override protected void onPause() {
@@ -66,6 +105,7 @@ public class UnityTinyActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        mOrientationListener.disable();
         mView.onDestroy();
         super.onDestroy();
         Process.killProcess(Process.myPid());
@@ -85,5 +125,132 @@ public class UnityTinyActivity extends Activity {
         // volume up/down keys need to be processed by system
         return event.getKeyCode() != KeyEvent.KEYCODE_VOLUME_DOWN &&
                event.getKeyCode() != KeyEvent.KEYCODE_VOLUME_UP;
+    }
+
+    private final int k_AngleThreshold = 25;
+    private int mDeviceOrientation;
+    private int mNaturalOrientation;
+    private void processOrientationChange(int angle)
+    {
+        if (angle == -1)
+        {
+            // angle unknown, do nothing
+            return;
+        }
+
+        int deviceOrientation = mDeviceOrientation;
+        if (mNaturalOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        {
+            if (angle < k_AngleThreshold || angle > 360 - k_AngleThreshold)
+            {
+                deviceOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            }
+            else if (angle > 90 - k_AngleThreshold && angle < 90 + k_AngleThreshold)
+            {
+                deviceOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+            }
+            else if (angle > 180 - k_AngleThreshold && angle < 180 + k_AngleThreshold)
+            {
+                deviceOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+            }
+            else if (angle > 270 - k_AngleThreshold && angle < 270 + k_AngleThreshold)
+            {
+                deviceOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+            }
+        }
+        else // ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        {
+            if (angle < k_AngleThreshold || angle > 360 - k_AngleThreshold)
+            {
+                deviceOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+            }
+            else if (angle > 90 - k_AngleThreshold && angle < 90 + k_AngleThreshold)
+            {
+                deviceOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            }
+            else if (angle > 180 - k_AngleThreshold && angle < 180 + k_AngleThreshold)
+            {
+                deviceOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+            }
+            else if (angle > 270 - k_AngleThreshold && angle < 270 + k_AngleThreshold)
+            {
+                deviceOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+            }
+        }
+        if (deviceOrientation != mDeviceOrientation)
+        {
+            Log.d(TAG, "deviceOrientationChanged " + deviceOrientation);
+            UnityTinyAndroidJNILib.deviceOrientationChanged(deviceOrientation);
+            mDeviceOrientation = deviceOrientation;
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig)
+    {
+        super.onConfigurationChanged(newConfig);
+        int newOrientation = getActualOrientation(newConfig.orientation);
+        Log.d(TAG, "screenOrientationChanged " + newOrientation);
+        UnityTinyAndroidJNILib.screenOrientationChanged(newOrientation);
+    }
+
+    public static void changeOrientation(int orientation)
+    {
+        sActivity.setRequestedOrientation(orientation);
+    }
+
+    private int getNaturalOrientation(int orientation)
+    {
+        int angle = mWindowManager.getDefaultDisplay().getRotation();
+        if (((angle == Surface.ROTATION_0 || angle == Surface.ROTATION_180) && orientation == Configuration.ORIENTATION_LANDSCAPE) ||
+            ((angle == Surface.ROTATION_90 || angle == Surface.ROTATION_270) && orientation == Configuration.ORIENTATION_PORTRAIT))
+        {
+            return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+        }
+        else
+        {
+            return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        }
+    }
+
+    private int getActualOrientation(int orientation)
+    {
+        int angle = mWindowManager.getDefaultDisplay().getRotation();
+        if (mNaturalOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        {
+            if (orientation == Configuration.ORIENTATION_LANDSCAPE)
+            {
+                if (angle == Surface.ROTATION_270)
+                    return ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+                else
+                    return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+            }
+            if (orientation == Configuration.ORIENTATION_PORTRAIT)
+            {
+                if (angle == Surface.ROTATION_180)
+                    return ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+                else
+                    return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            }
+        }
+        else // ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        {
+            if (orientation == Configuration.ORIENTATION_LANDSCAPE)
+            {
+                if (angle == Surface.ROTATION_180)
+                    return ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+                else
+                    return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+            }
+            if (orientation == Configuration.ORIENTATION_PORTRAIT)
+            {
+                if (angle == Surface.ROTATION_90)
+                    return ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
+                else
+                    return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            }
+        }
+        // unknown
+        return mNaturalOrientation;
     }
 }

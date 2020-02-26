@@ -15,7 +15,7 @@ import android.os.Looper;
 
 class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
 {
-    enum RunStateEvent { PAUSE, RESUME, QUIT, SURFACE_LOST, SURFACE_ACQUIRED, SURFACE_CHANGED, NEXT_FRAME };
+    enum RunStateEvent { PAUSE, RESUME, QUIT, NEXT_FRAME };
     private static final int RUN_STATE_CHANGED_MSG_CODE = 2269;
     private static final int ANR_TIMEOUT_SECONDS = 4;
 
@@ -24,7 +24,8 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
         Handler m_Handler;
         SurfaceHolder m_Holder;
         boolean m_Running = false;
-        boolean m_SurfaceAvailable = false;
+
+        public boolean m_SurfaceAvailable = false;
 
         public UnityTinyThread(SurfaceHolder holder)
         {
@@ -50,10 +51,10 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
                         if (!m_Running)
                             return true;
 
-                        if (!m_SurfaceAvailable)
-                            return true;
-
-                        UnityTinyAndroidJNILib.step();
+                        if (m_SurfaceAvailable)
+                        {
+                            UnityTinyAndroidJNILib.step();
+                        }
                     }
                     else if (runState == RunStateEvent.QUIT)
                     {
@@ -73,21 +74,6 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
                         UnityTinyAndroidJNILib.pause(1);
                         m_Running = false;
                     }
-                    else if (runState == RunStateEvent.SURFACE_LOST)
-                    {
-                        Log.d(TAG, "Thread SURFACE_LOST");
-                        m_SurfaceAvailable = false;
-                    }
-                    else if (runState == RunStateEvent.SURFACE_ACQUIRED)
-                    {
-                        Log.d(TAG, "Thread SURFACE_ACQUIRED");
-                    }
-                    else if (runState == RunStateEvent.SURFACE_CHANGED)
-                    {
-                        Log.d(TAG, "Thread SURFACE_CHANGED");
-                        UnityTinyAndroidJNILib.init(m_Holder.getSurface(), msg.arg1, msg.arg2);
-                        m_SurfaceAvailable = true;
-                    }
 
                     // trigger next frame
                     if (m_Running)
@@ -97,9 +83,8 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
                 }
             });
 
-            Log.d(TAG, "Thread JNILib.start call");
+            Log.d(TAG, "Calling JNILib.start");
             UnityTinyAndroidJNILib.start();
-            Log.d(TAG, "Thread JNILib.start after");
 
             Looper.loop();
         }
@@ -122,28 +107,11 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
             Message.obtain(m_Handler, runnable).sendToTarget();
         }
 
-        public void surfaceLost()
-        {
-            dispatchRunStateEvent(RunStateEvent.SURFACE_LOST);
-        }
-
-        public void surfaceAcquired()
-        {
-            dispatchRunStateEvent(RunStateEvent.SURFACE_ACQUIRED);
-        }
-
-        public void surfaceChanged(int width, int height)
-        {
-            if (m_Handler != null)
-                Message.obtain(m_Handler, RUN_STATE_CHANGED_MSG_CODE, width, height, RunStateEvent.SURFACE_CHANGED).sendToTarget();
-        }
-
         private void dispatchRunStateEvent(RunStateEvent ev)
         {
             if (m_Handler != null)
                 Message.obtain(m_Handler, RUN_STATE_CHANGED_MSG_CODE, ev).sendToTarget();
         }
-
     }
 
     private static String TAG = "UnityTinyView";
@@ -164,21 +132,21 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height)
     {
         Log.d(TAG, "surfaceChanged " + width + " x " + height);
-        m_Thread.surfaceChanged(width, height);
+        UnityTinyAndroidJNILib.init(holder.getSurface(), width, height);
+        m_Thread.m_SurfaceAvailable = true;
     }
 
     @Override
     public void surfaceCreated(SurfaceHolder holder)
     {
         Log.d(TAG, "surfaceCreated");
-        m_Thread.surfaceAcquired();
     }
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder)
     {
         Log.d(TAG, "surfaceDestroyed");
-        m_Thread.surfaceLost();
+        m_Thread.m_SurfaceAvailable = false;
     }
 
     public void onPause()

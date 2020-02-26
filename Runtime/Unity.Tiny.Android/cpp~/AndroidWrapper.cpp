@@ -16,10 +16,13 @@
 #include <vector>
 #include <string>
 
+static JavaVM* gJavaVm = NULL;
 static void* m_libmain = NULL;
 static bool shouldClose = false;
 static int windowW = 0;
 static int windowH = 0;
+static int deviceOrientation = 0;
+static int screenOrientation = 0;
 static AAssetManager *nativeAssetManager = NULL;
 static ANativeWindow *nativeWindow = NULL;
 // input
@@ -29,6 +32,8 @@ static std::vector<int> key_stream;
 static bool (*raf)() = 0;
 static void (*pausef)(int) = 0;
 static void (*destroyf)() = 0;
+static void (*screen_orientationf)(int) = 0;
+static void (*device_orientationf)(int) = 0;
 
 DOTS_EXPORT(bool)
 init_android() {
@@ -104,7 +109,7 @@ rafcallbackinit_android(bool (*func)()) {
 }
 
 DOTS_EXPORT(bool)
-pausecallbacksinit_android(void (*func)(int)) {
+pausecallbackinit_android(void (*func)(int)) {
     if (pausef)
         return false;
     pausef = func;
@@ -112,10 +117,30 @@ pausecallbacksinit_android(void (*func)(int)) {
 }
 
 DOTS_EXPORT(bool)
-destroycallbacksinit_android(void (*func)()) {
+destroycallbackinit_android(void (*func)()) {
     if (destroyf)
         return false;
     destroyf = func;
+    return true;
+}
+
+DOTS_EXPORT(bool)
+screen_orientationcallbackinit_android(void (*func)(int)) {
+    if (screen_orientationf)
+        return false;
+    screen_orientationf = func;
+    if (screen_orientationf)
+        screen_orientationf(screenOrientation);
+    return true;
+}
+
+DOTS_EXPORT(bool)
+device_orientationcallbackinit_android(void (*func)(int)) {
+    if (device_orientationf)
+        return false;
+    device_orientationf = func;
+    if (device_orientationf)
+        device_orientationf(deviceOrientation);
     return true;
 }
 
@@ -142,13 +167,37 @@ reset_android_input()
 }
 
 DOTS_EXPORT(int64_t)
-get_native_window_android() {
+get_native_window_android()
+{
     return (int64_t)nativeWindow ;
+}
+
+DOTS_EXPORT(void)
+set_orientation_android(int orientation)
+{
+    JNIEnv* env = 0;
+    bool detached = gJavaVm->GetEnv((void**)&env, JNI_VERSION_1_2) == JNI_EDETACHED;
+    if (detached)
+    {
+        gJavaVm->AttachCurrentThread(&env, NULL);
+    }
+
+    // calling java method to change orientation
+    jclass clazz = env->FindClass("com/unity3d/tinyplayer/UnityTinyActivity");
+    jmethodID setOrientation = env->GetStaticMethodID(clazz, "changeOrientation", "(I)V");
+    env->CallStaticVoidMethod(clazz, setOrientation, orientation);
+
+    if (detached)
+    {
+        gJavaVm->DetachCurrentThread();
+    }
 }
 
 extern "C"
 JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_start(JNIEnv * env, jobject obj, jstring name)
 {
+    env->GetJavaVM(&gJavaVm);
+
     typedef void(*fp_main)();
     fp_main mainfunc;
     const char* mainlib = env->GetStringUTFChars(name, NULL);
@@ -252,4 +301,20 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_keyeve
     key_stream.push_back(scancode);
     key_stream.push_back(action);
     key_stream.push_back(mods);
+}
+
+extern "C"
+JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_screenOrientationChanged(JNIEnv* env, jobject obj, jint orientation)
+{
+    screenOrientation = orientation;
+    if (screen_orientationf)
+        screen_orientationf(orientation);
+}
+
+extern "C"
+JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_deviceOrientationChanged(JNIEnv* env, jobject obj, jint orientation)
+{
+    deviceOrientation = orientation;
+    if (device_orientationf)
+        device_orientationf(orientation);
 }
