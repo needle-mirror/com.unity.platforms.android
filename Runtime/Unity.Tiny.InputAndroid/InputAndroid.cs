@@ -1,4 +1,6 @@
 using Unity.Entities;
+using Unity.Mathematics;
+using Unity.Core;
 using Unity.Tiny.Input;
 
 namespace Unity.Tiny.Android
@@ -10,6 +12,7 @@ namespace Unity.Tiny.Android
         private bool initialized = false;
 
         // these mirror the Android native MotionEvent constants
+        // TODO probably make it enum for consistensy
         const int ACTION_DOWN = 0;
         const int ACTION_UP = 1;
         const int ACTION_MOVE = 2;
@@ -21,7 +24,7 @@ namespace Unity.Tiny.Android
             if (initialized)
                 return;
 
-            // do we need additional initialization here after window
+            // do we need additional initialization here after window?
             initialized = true;
         }
 
@@ -914,5 +917,316 @@ namespace Unity.Tiny.Android
             return KeyCode.None;
         }
 
+        protected override bool IsAvailable(ComponentType type)
+        {
+            if (type == typeof(AccelerometerSensor))
+            {
+                return AndroidNativeCalls.availableSensor((int)AndroidAccelerometerSensor.DeviceSensorType);
+            }
+            else if (type == typeof(GyroscopeSensor))
+            {
+                return AndroidNativeCalls.availableSensor((int)AndroidGyroscopeSensor.DeviceSensorType);
+            }
+            else if (type == typeof(GravitySensor))
+            {
+                return AndroidNativeCalls.availableSensor((int)AndroidGravitySensor.DeviceSensorType);
+            }
+            else if (type == typeof(AttitudeSensor))
+            {
+                return AndroidNativeCalls.availableSensor((int)AndroidAttitudeSensor.DeviceSensorType);
+            }
+            else if (type == typeof(LinearAccelerationSensor))
+            {
+                return AndroidNativeCalls.availableSensor((int)AndroidLinearAccelerationSensor.DeviceSensorType);
+            }
+            return false;
+        }
+
+        protected override Sensor CreateSensor(ComponentType type)
+        {
+            if (type == typeof(AccelerometerSensor))
+            {
+                return new Sensor(type, new AndroidAccelerometerSensor(this));
+            }
+            else if (type == typeof(GyroscopeSensor))
+            {
+                return new Sensor(type, new AndroidGyroscopeSensor(this));
+            }
+            else if (type == typeof(GravitySensor))
+            {
+                return new Sensor(type, new AndroidGravitySensor(this));
+            }
+            else if (type == typeof(AttitudeSensor))
+            {
+                return new Sensor(type, new AndroidAttitudeSensor(this));
+            }
+            else if (type == typeof(LinearAccelerationSensor))
+            {
+                return new Sensor(type, new AndroidLinearAccelerationSensor(this));
+            }
+            return null;
+        }
+
+    }
+
+    // copy from Android NDK android/sensor.h (including values not available in Android API 16, but available later)
+    public enum SensorType
+    {
+        ASENSOR_TYPE_ACCELEROMETER = 1,
+        ASENSOR_TYPE_MAGNETIC_FIELD = 2,
+        ASENSOR_TYPE_ORIENTATION = 3,
+        ASENSOR_TYPE_GYROSCOPE = 4,
+        ASENSOR_TYPE_LIGHT = 5,
+        ASENSOR_TYPE_PRESSURE = 6,
+        ASENSOR_TYPE_PROXIMITY = 8,
+        ASENSOR_TYPE_TEMPERATURE = 7,
+        ASENSOR_TYPE_GRAVITY = 9,
+        ASENSOR_TYPE_LINEAR_ACCELERATION = 10,
+        ASENSOR_TYPE_ROTATION_VECTOR = 11,
+        ASENSOR_TYPE_RELATIVE_HUMIDITY = 12,
+        ASENSOR_TYPE_AMBIENT_TEMPERATURE = 13,
+        ASENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED = 14,          // Added in API Level 18
+        ASENSOR_TYPE_GAME_ROTATION_VECTOR = 15,                 // Added in API Level 18
+        ASENSOR_TYPE_GYROSCOPE_UNCALIBRATED = 16,               // Added in API Level 18
+        ASENSOR_TYPE_SIGNIFICANT_MOTION = 17,                   // Added in API Level 18
+        ASENSOR_TYPE_STEP_DETECTOR = 18,                        // Added in API Level 19
+        ASENSOR_TYPE_STEP_COUNTER = 19,                    // Added in API Level 19
+        ASENSOR_TYPE_GEOMAGNETIC_ROTATION_VECTOR = 20,          // Added in API Level 19
+        ASENSOR_TYPE_HEART_RATE = 21,                           // Added in API Level 20
+        ASENSOR_TYPE_POSE_6DOF = 28,
+        ASENSOR_TYPE_STATIONARY_DETECT = 29,
+        ASENSOR_TYPE_MOTION_DETECT = 30,
+        ASENSOR_TYPE_HEART_BEAT = 31,
+        ASENSOR_TYPE_LOW_LATENCY_OFFBODY_DETECT = 34,
+        ASENSOR_TYPE_ACCELEROMETER_UNCALIBRATED = 35,
+        ASENSOR_TYPE_MAX
+    }
+
+    internal class AndroidSensor<TValue> where TValue : struct
+    {
+        private bool m_Enabled;
+        private SensorType m_SensorType;
+        private int m_SamplingFrequency;
+        private InputProcessor<TValue> m_InputProcessor;
+        private RawSensorDataConverter<TValue> m_RawSensorDataConverter;
+        private InputSystem m_InputSystem;
+        private double m_LastTime;
+        private Entity m_sensorSingleton;
+
+        public AndroidSensor(InputSystem inputSystem, SensorType type, InputProcessor<TValue> inputProcessor, RawSensorDataConverter<TValue> rawSensorDataConverter)
+        {
+            m_Enabled = false;
+            m_SensorType = type;
+            m_InputProcessor = inputProcessor;
+            m_RawSensorDataConverter = rawSensorDataConverter;
+            m_InputSystem = inputSystem;
+            m_LastTime = 0.0;
+
+            // https://developer.android.com/guide/topics/sensors/sensors_overview the predefined values for sensor delays are:
+            // SENSOR_DELAY_FASTEST = 0
+            // SENSOR_DELAY_GAME = 20000
+            // SENSOR_DELAY_UI = 60000
+            // SENSOR_DELAY_NORMAL = 200000
+            // Big Unity input uses SENSOR_DELAY_GAME as a default value, preserve this in Tiny input as well
+            m_SamplingFrequency = 1000000 / 20000;
+        }
+
+        public void Dispose()
+        {
+            AndroidNativeCalls.enableSensor((int)m_SensorType, false, 0);
+        }
+
+        public bool Enabled
+        {
+            get
+            {
+                return m_Enabled;
+            }
+            set
+            {
+                m_Enabled = AndroidNativeCalls.enableSensor((int)m_SensorType, value, m_SamplingFrequency);
+            }
+        }
+
+        public int SamplingFrequency
+        {
+            get
+            {
+                return m_SamplingFrequency;
+            }
+            set
+            {
+                // TODO check for valid values
+                if (m_SamplingFrequency != value)
+                {
+                    m_SamplingFrequency = value;
+                    m_Enabled = AndroidNativeCalls.enableSensor((int)m_SensorType, m_Enabled, value);
+                }
+            }
+        }
+
+        private unsafe double* GetSensorData(ref int len)
+        {
+            return AndroidNativeCalls.getSensorStream((int)m_SensorType, ref len);
+        }
+
+        protected unsafe bool UpdateInputData(ref TimeData lastUpdateTime, ref TValue inputData)
+        {
+            int len = 0;
+            var data = GetSensorData(ref len);
+            if (len > 0)
+            {
+                var time = m_LastTime;
+                for (int i = 0; i < len; i += 4)
+                {
+                    time = data[i];
+                    inputData = m_RawSensorDataConverter.ConvertRawSensorData(data, i + 1);
+                    m_InputProcessor.Process(ref inputData);
+                }
+                lastUpdateTime = new TimeData(time, (float)(time - m_LastTime));
+                m_LastTime = time;
+                return true;
+            }
+            return false;
+        }
+
+        protected void SetSensorData<T>(T data) where T : struct, IComponentData
+        {
+            if (m_sensorSingleton == Entity.Null)
+            {
+                m_sensorSingleton = m_InputSystem.EntityManager.CreateEntity(typeof(T));
+            }
+            m_InputSystem.EntityManager.SetComponentData(m_sensorSingleton, data);
+        }
+    }
+
+    internal class AndroidAccelerometerSensor : AndroidSensor<float3>, IPlatformSensor
+    {
+        public const SensorType DeviceSensorType = SensorType.ASENSOR_TYPE_ACCELEROMETER;
+        public AndroidAccelerometerSensor(InputSystem inputSystem) :
+            base(inputSystem, DeviceSensorType, new AndroidCompensateDirectionProcessor(), new Float3RawSensorDataConverter()) {}
+
+        public void ProcessSensorData()
+        {
+            var data = new AccelerometerSensor();
+            if (UpdateInputData(ref data.LastUpdateTime, ref data.Acceleration))
+            {
+                SetSensorData<AccelerometerSensor>(data);
+            }
+        }
+    }
+
+    internal class AndroidGyroscopeSensor : AndroidSensor<float3>, IPlatformSensor
+    {
+        public const SensorType DeviceSensorType = SensorType.ASENSOR_TYPE_GYROSCOPE;
+        public AndroidGyroscopeSensor(InputSystem inputSystem) :
+            base(inputSystem, DeviceSensorType, new CompensateDirectionProcessor(), new Float3RawSensorDataConverter()) {}
+
+        public void ProcessSensorData()
+        {
+            var data = new GyroscopeSensor();
+            if (UpdateInputData(ref data.LastUpdateTime, ref data.AngularVelocity))
+            {
+                SetSensorData<GyroscopeSensor>(data);
+            }
+        }
+    }
+
+    internal class AndroidGravitySensor : AndroidSensor<float3>, IPlatformSensor
+    {
+        public const SensorType DeviceSensorType = SensorType.ASENSOR_TYPE_GRAVITY;
+        public AndroidGravitySensor(InputSystem inputSystem) :
+            base(inputSystem, DeviceSensorType, new AndroidCompensateDirectionProcessor(), new Float3RawSensorDataConverter()) {}
+
+        public void ProcessSensorData()
+        {
+            var data = new GravitySensor();
+            if (UpdateInputData(ref data.LastUpdateTime, ref data.Gravity))
+            {
+                SetSensorData<GravitySensor>(data);
+            }
+        }
+    }
+
+    internal class AndroidAttitudeSensor : AndroidSensor<quaternion>, IPlatformSensor
+    {
+        public const SensorType DeviceSensorType = SensorType.ASENSOR_TYPE_ROTATION_VECTOR;
+        public AndroidAttitudeSensor(InputSystem inputSystem) :
+            base(inputSystem, DeviceSensorType, new AndroidCompensateRotationProcessor(), new QuaternionRawSensorDataConverter()) {}
+
+        public void ProcessSensorData()
+        {
+            var data = new AttitudeSensor();
+            if (UpdateInputData(ref data.LastUpdateTime, ref data.Attitude))
+            {
+                SetSensorData<AttitudeSensor>(data);
+            }
+        }
+    }
+
+    internal class AndroidLinearAccelerationSensor : AndroidSensor<float3>, IPlatformSensor
+    {
+        public const SensorType DeviceSensorType = SensorType.ASENSOR_TYPE_LINEAR_ACCELERATION;
+        public AndroidLinearAccelerationSensor(InputSystem inputSystem) :
+            base(inputSystem, DeviceSensorType, new AndroidCompensateDirectionProcessor(), new Float3RawSensorDataConverter()) {}
+
+        public void ProcessSensorData()
+        {
+            var data = new LinearAccelerationSensor();
+            if (UpdateInputData(ref data.LastUpdateTime, ref data.Acceleration))
+            {
+                SetSensorData<LinearAccelerationSensor>(data);
+            }
+        }
+    }
+
+    internal abstract class RawSensorDataConverter<TValue> where TValue : struct
+    {
+        public unsafe abstract TValue ConvertRawSensorData(double *data, int idx);
+    }
+
+    internal class Float3RawSensorDataConverter : RawSensorDataConverter<float3>
+    {
+        public unsafe override float3 ConvertRawSensorData(double *data, int idx)
+        {
+            return new float3((float)data[idx], (float)data[idx + 1], (float)data[idx + 2]);
+        }
+    }
+
+    internal class QuaternionRawSensorDataConverter : RawSensorDataConverter<quaternion>
+    {
+        public unsafe override quaternion ConvertRawSensorData(double *data, int idx)
+        {
+            return new quaternion((float)data[idx], (float)data[idx + 1], (float)data[idx + 2], 0);
+        }
+    }
+
+    internal class AndroidCompensateDirectionProcessor : CompensateDirectionProcessor
+    {
+        // Taken from platforms\android-<API>\arch-arm\usr\include\android\sensor.h
+        private const float kSensorStandardGravity = 9.80665f;
+        private const float kAccelerationMultiplier = -1.0f / kSensorStandardGravity;
+
+        public override void Process(ref float3 value)
+        {
+            value *= kAccelerationMultiplier;
+            base.Process(ref value);
+        }
+    }
+
+    internal class AndroidCompensateRotationProcessor : CompensateRotationProcessor
+    {
+        public override void Process(ref quaternion value)
+        {
+            // https://developer.android.com/reference/android/hardware/SensorEvent#values
+            // "...The rotation vector represents the orientation of the device as a combination of an angle and an axis, in which the device has rotated through an angle theta around an axis <x, y, z>."
+            // "...The three elements of the rotation vector are < x * sin(theta / 2), y* sin(theta / 2), z* sin(theta / 2)>, such that the magnitude of the rotation vector is equal to sin(theta / 2), and the direction of the rotation vector is equal to the direction of the axis of rotation."
+            // "...The three elements of the rotation vector are equal to the last three components of a unit quaternion < cos(theta / 2), x* sin(theta/ 2), y* sin(theta / 2), z* sin(theta/ 2)>."
+            //
+            // In other words, axis + rotation is combined into Vector3, to recover the quaternion from it, we must compute 4th component as 1 - sqrt(x*x + y*y + z*z)
+            var sinRho2 = value.value.x * value.value.x + value.value.y * value.value.y + value.value.z * value.value.z;
+            value.value.w = (sinRho2 < 1.0f) ? math.sqrt(1.0f - sinRho2) : 0.0f;
+            base.Process(ref value);
+        }
     }
 }

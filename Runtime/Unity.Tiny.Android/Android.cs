@@ -377,6 +377,15 @@ namespace Unity.Tiny.Android
         [DllImport("lib_unity_tiny_android", EntryPoint = "reset_android_input")]
         public static extern void resetStreams();
 
+        [DllImport("lib_unity_tiny_android", EntryPoint = "available_sensor")]
+        public static extern bool availableSensor(int type);
+
+        [DllImport("lib_unity_tiny_android", EntryPoint = "enable_sensor")]
+        public static extern bool enableSensor(int type, bool enable, int rate);
+
+        [DllImport("lib_unity_tiny_android", EntryPoint = "get_sensor_stream_android")]
+        public static extern unsafe double * getSensorStream(int type, ref int len);
+
         [DllImport("lib_unity_tiny_android", EntryPoint = "set_orientation_android")]
         public static extern bool setOrientation(int orientation);
 

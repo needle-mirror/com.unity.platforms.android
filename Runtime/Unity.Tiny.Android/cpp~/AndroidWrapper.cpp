@@ -15,6 +15,7 @@
 #include <time.h>
 #include <vector>
 #include <string>
+#include "AndroidSensors.h"
 
 static JavaVM* gJavaVm = NULL;
 static void* m_libmain = NULL;
@@ -164,12 +165,33 @@ reset_android_input()
 {
     touch_info_stream.clear();
     key_stream.clear();
+    m_AndroidSensors.ResetSensorsData();
 }
 
 DOTS_EXPORT(int64_t)
 get_native_window_android()
 {
     return (int64_t)nativeWindow ;
+}
+
+DOTS_EXPORT(bool)
+available_sensor(int type)
+{
+    return m_AndroidSensors.AvailableSensor(type);
+}
+
+DOTS_EXPORT(bool)
+enable_sensor(int type, bool enable, int rate)
+{
+    return m_AndroidSensors.EnableSensor(type, enable, rate);
+}
+
+DOTS_EXPORT(const double*)
+get_sensor_stream_android(int type, int *len)
+{
+    if (len == NULL)
+        return NULL;
+    return m_AndroidSensors.GetSensorData(type, len);
 }
 
 DOTS_EXPORT(void)
@@ -197,6 +219,11 @@ extern "C"
 JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_start(JNIEnv * env, jobject obj, jstring name)
 {
     env->GetJavaVM(&gJavaVm);
+
+    // to initialize time
+    time_android();
+
+    m_AndroidSensors.InitializeSensors();
 
     typedef void(*fp_main)();
     fp_main mainfunc;
@@ -282,6 +309,7 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_destro
         destroyf();
     if (m_libmain)
         dlclose(m_libmain);
+    m_AndroidSensors.ShutdownSensors();
 }
 
 extern "C"

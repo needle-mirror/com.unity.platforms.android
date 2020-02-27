@@ -14,6 +14,7 @@ namespace Unity.Platforms.Android
         public override string BeeTargetName => "android_armv7";
         public override string ExecutableExtension => ".apk";
         public override string UnityPlatformName => nameof(UnityEditor.BuildTarget.Android);
+        public override bool UsesIL2CPP => true;
 
         private string GetPackageName(string name)
         {

@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [0.2.1] - 2020-02-25
 
 ### Changed
-- Updated `com.unity.platforms` package version to `0.2.1-preview.4`.
+- Updated `com.unity.platforms` package version to `0.2.1-preview.5`.
+
+### Added
+- Add a UsesIL2CPP property to BuildTarget
 
 ## [0.2.1-preview] - 2020-01-24
 
