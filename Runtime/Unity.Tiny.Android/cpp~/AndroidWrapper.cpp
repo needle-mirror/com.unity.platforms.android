@@ -194,25 +194,83 @@ get_sensor_stream_android(int type, int *len)
     return m_AndroidSensors.GetSensorData(type, len);
 }
 
+class JavaVMThreadScope
+{
+public:
+    JavaVMThreadScope()
+    {
+        m_env = 0;
+        m_detached = gJavaVm->GetEnv((void**)&m_env, JNI_VERSION_1_2) == JNI_EDETACHED;
+        if (m_detached)
+        {
+            gJavaVm->AttachCurrentThread(&m_env, NULL);
+        }
+        CheckException();
+    }
+
+    ~JavaVMThreadScope()
+    {
+        CheckException();
+        if (m_detached)
+        {
+            gJavaVm->DetachCurrentThread();
+        }
+    }
+
+    JNIEnv* GetEnv()
+    {
+        return m_env;
+    }
+
+private:
+    JNIEnv* m_env;
+    bool m_detached;
+
+#if defined(DEBUG)
+    void CheckException()
+    {
+        if (!m_env->ExceptionCheck())
+            return;
+
+        __android_log_print(ANDROID_LOG_INFO, "AndroidWrapper", "Java exception detected");
+        m_env->ExceptionDescribe();
+        m_env->ExceptionClear();
+    }
+#else
+    void CheckException() {}
+#endif
+};
+
 DOTS_EXPORT(void)
 set_orientation_android(int orientation)
 {
-    JNIEnv* env = 0;
-    bool detached = gJavaVm->GetEnv((void**)&env, JNI_VERSION_1_2) == JNI_EDETACHED;
-    if (detached)
-    {
-        gJavaVm->AttachCurrentThread(&env, NULL);
-    }
-
-    // calling java method to change orientation
+    JavaVMThreadScope javaVM;
+    JNIEnv* env = javaVM.GetEnv();
     jclass clazz = env->FindClass("com/unity3d/tinyplayer/UnityTinyActivity");
     jmethodID setOrientation = env->GetStaticMethodID(clazz, "changeOrientation", "(I)V");
     env->CallStaticVoidMethod(clazz, setOrientation, orientation);
+}
 
-    if (detached)
-    {
-        gJavaVm->DetachCurrentThread();
-    }
+DOTS_EXPORT(int)
+get_natural_orientation_android()
+{
+    JavaVMThreadScope javaVM;
+    JNIEnv* env = javaVM.GetEnv();
+    jclass clazz = env->FindClass("com/unity3d/tinyplayer/UnityTinyActivity");
+    jmethodID getNaturalOrientation = env->GetStaticMethodID(clazz, "getNaturalOrientation", "()I");
+    return env->CallStaticIntMethod(clazz, getNaturalOrientation);
+}
+
+DOTS_EXPORT(void)
+show_debug_dialog(const char* message)
+{
+    JavaVMThreadScope javaVM;
+    JNIEnv* env = javaVM.GetEnv();
+    jclass clazz = env->FindClass("com/unity3d/tinyplayer/UnityTinyActivity");
+    jmethodID showAlertDialog = env->GetStaticMethodID(clazz, "showDebugDialog", "(Ljava/lang/String;)V");
+    jstring jmessage = env->NewStringUTF(message);
+    env->CallStaticVoidMethod(clazz, showAlertDialog, jmessage);
+    env->DeleteLocalRef(jmessage);
 }
 
 extern "C"

@@ -9,7 +9,8 @@ namespace Unity.Tiny.Android
     [UpdateAfter(typeof(AndroidWindowSystem))]
     public class AndroidInputSystem : InputSystem
     {
-        private bool initialized = false;
+        private bool m_Initialized = false;
+        private int m_NaturalOrientation = -1;
 
         // these mirror the Android native MotionEvent constants
         // TODO probably make it enum for consistensy
@@ -21,11 +22,12 @@ namespace Unity.Tiny.Android
         protected override void OnStartRunning()
         {
             base.OnStartRunning();
-            if (initialized)
+            if (m_Initialized)
                 return;
 
             // do we need additional initialization here after window?
-            initialized = true;
+            m_NaturalOrientation = AndroidNativeCalls.getNaturalOrientation();
+            m_Initialized = true;
         }
 
         protected override void OnDestroy()
@@ -967,6 +969,20 @@ namespace Unity.Tiny.Android
             return null;
         }
 
+        protected override int GetRotationIndex(ScreenOrientation orientation)
+        {
+            if (m_NaturalOrientation == 0) // ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            {
+                switch (orientation)
+                {
+                    case ScreenOrientation.Portrait: return 3;
+                    case ScreenOrientation.Landscape: return 0;
+                    case ScreenOrientation.ReversePortrait: return 1;
+                    case ScreenOrientation.ReverseLandscape: return 2;
+                }
+            }
+            return base.GetRotationIndex(orientation);
+        }
     }
 
     // copy from Android NDK android/sensor.h (including values not available in Android API 16, but available later)
@@ -1081,7 +1097,7 @@ namespace Unity.Tiny.Android
                 {
                     time = data[i];
                     inputData = m_RawSensorDataConverter.ConvertRawSensorData(data, i + 1);
-                    m_InputProcessor.Process(ref inputData);
+                    m_InputProcessor.Process(m_InputSystem, ref inputData);
                 }
                 lastUpdateTime = new TimeData(time, (float)(time - m_LastTime));
                 m_LastTime = time;
@@ -1207,16 +1223,16 @@ namespace Unity.Tiny.Android
         private const float kSensorStandardGravity = 9.80665f;
         private const float kAccelerationMultiplier = -1.0f / kSensorStandardGravity;
 
-        public override void Process(ref float3 value)
+        public override void Process(InputSystem inputSystem, ref float3 value)
         {
             value *= kAccelerationMultiplier;
-            base.Process(ref value);
+            base.Process(inputSystem, ref value);
         }
     }
 
     internal class AndroidCompensateRotationProcessor : CompensateRotationProcessor
     {
-        public override void Process(ref quaternion value)
+        public override void Process(InputSystem inputSystem, ref quaternion value)
         {
             // https://developer.android.com/reference/android/hardware/SensorEvent#values
             // "...The rotation vector represents the orientation of the device as a combination of an angle and an axis, in which the device has rotated through an angle theta around an axis <x, y, z>."
@@ -1226,7 +1242,7 @@ namespace Unity.Tiny.Android
             // In other words, axis + rotation is combined into Vector3, to recover the quaternion from it, we must compute 4th component as 1 - sqrt(x*x + y*y + z*z)
             var sinRho2 = value.value.x * value.value.x + value.value.y * value.value.y + value.value.z * value.value.z;
             value.value.w = (sinRho2 < 1.0f) ? math.sqrt(1.0f - sinRho2) : 0.0f;
-            base.Process(ref value);
+            base.Process(inputSystem, ref value);
         }
     }
 }

@@ -131,6 +131,7 @@ namespace Unity.Tiny.Android
             config.framebufferWidth = fbw;
             config.framebufferHeight = fbh;
             env.SetConfigData(config);
+            SetOrientationMask(m_screenOrientationMask);
 
             m_frameTime = AndroidNativeCalls.time();
         }
@@ -389,6 +390,11 @@ namespace Unity.Tiny.Android
         [DllImport("lib_unity_tiny_android", EntryPoint = "set_orientation_android")]
         public static extern bool setOrientation(int orientation);
 
+        [DllImport("lib_unity_tiny_android", EntryPoint = "get_natural_orientation_android")]
+        public static extern int getNaturalOrientation();
+
+        [DllImport("lib_unity_tiny_android", EntryPoint = "show_debug_dialog", CharSet = CharSet.Ansi)]
+        public static extern void showDebugDialog([MarshalAs(UnmanagedType.LPStr)]string message);
     }
 
 }

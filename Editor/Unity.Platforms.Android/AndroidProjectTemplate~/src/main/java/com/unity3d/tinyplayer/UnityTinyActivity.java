@@ -1,6 +1,7 @@
 package com.unity3d.tinyplayer;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Process;
 import android.util.Log;
@@ -16,7 +17,9 @@ import android.content.Context;
 import android.content.res.AssetManager;
 import android.content.res.Configuration;
 import android.content.pm.ActivityInfo;
+import android.content.DialogInterface;
 import java.io.File;
+import java.util.concurrent.Semaphore;
 
 public class UnityTinyActivity extends Activity {
 
@@ -199,6 +202,11 @@ public class UnityTinyActivity extends Activity {
         sActivity.setRequestedOrientation(orientation);
     }
 
+    public static int getNaturalOrientation()
+    {
+        return sActivity.mNaturalOrientation;
+    }
+
     private int getNaturalOrientation(int orientation)
     {
         int angle = mWindowManager.getDefaultDisplay().getRotation();
@@ -252,5 +260,51 @@ public class UnityTinyActivity extends Activity {
         }
         // unknown
         return mNaturalOrientation;
+    }
+
+    private AlertDialog debugDialog;
+    private final Semaphore dialogSemaphore = new Semaphore(0, true);
+    private void debugDialog(String message)
+    {
+        debugDialog = null;
+        Runnable debugDialogProcess = new Runnable()
+        {
+            public void run()
+            {
+                debugDialog = new AlertDialog.Builder(sActivity).create();
+                debugDialog.setTitle("Debug");
+                debugDialog.setMessage(message);
+                debugDialog.setButton(DialogInterface.BUTTON_NEUTRAL, "OK",
+                    new DialogInterface.OnClickListener()
+                    {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which)
+                        {
+                            dialogSemaphore.release();
+                        }
+                    });
+                debugDialog.setCancelable(false);
+                debugDialog.show();
+            }
+        };
+
+        runOnUiThread(debugDialogProcess);
+
+        try
+        {
+            dialogSemaphore.acquire();
+        }
+        catch (InterruptedException e)
+        {
+            if (debugDialog != null)
+            {
+                debugDialog.dismiss();
+            }
+        }
+    }
+
+    public static void showDebugDialog(String message)
+    {
+        sActivity.debugDialog(message);
     }
 }
