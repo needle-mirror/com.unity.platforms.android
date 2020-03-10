@@ -273,6 +273,16 @@ show_debug_dialog(const char* message)
     env->DeleteLocalRef(jmessage);
 }
 
+#if UNITY_DOTSPLAYER_IL2CPP_WAIT_FOR_MANAGED_DEBUGGER
+
+DOTS_EXPORT(void)
+ShowDebuggerAttachDialog(const char* message)
+{
+    show_debug_dialog(message);
+}
+
+#endif // UNITY_DOTSPLAYER_IL2CPP_WAIT_FOR_MANAGED_DEBUGGER
+
 extern "C"
 JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_start(JNIEnv * env, jobject obj, jstring name)
 {
