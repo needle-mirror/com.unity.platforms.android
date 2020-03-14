@@ -6,7 +6,9 @@
         "Unity.Build.Common",
         "Unity.Build.Editor",
         "Unity.Properties",
-        "Unity.Properties.Editor"
+        "Unity.Properties.Editor",
+        "Unity.Properties.UI",
+        "Unity.Properties.UI.Editor"
     ],
     "includePlatforms": [
         "Editor"

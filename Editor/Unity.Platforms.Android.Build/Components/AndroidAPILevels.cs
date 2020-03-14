@@ -24,14 +24,14 @@ namespace Unity.Platforms.Android.Build
             { 28, "Android 9.0 'Pie' (API level 28)" },
         };
 
-        [Property]
+        [CreateProperty]
         public int MinAPILevel
         {
             get => m_MinAPILevel;
             set => m_MinAPILevel = s_AndroidCodeNames.ContainsKey(value) ? value : s_AndroidCodeNames.Keys.First();
         }
 
-        [Property]
+        [CreateProperty]
         public int TargetAPILevel
         {
             get => m_TargetAPILevel;

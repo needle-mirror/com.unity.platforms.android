@@ -6,7 +6,7 @@ namespace Unity.Platforms.Android.Build
 {
     sealed class AndroidArchitectures : IBuildComponent
     {
-        [Property]
+        [CreateProperty]
         public AndroidArchitecture Architectures { get; set; } = AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64;
     }
 }

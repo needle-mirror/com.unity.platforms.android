@@ -1,6 +1,6 @@
-using System.Linq;
 using JetBrains.Annotations;
-using Unity.Properties.Editor;
+using System.Linq;
+using Unity.Properties.UI;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
@@ -8,11 +8,11 @@ using UnityEngine.UIElements;
 namespace Unity.Platforms.Android.Build
 {
     [UsedImplicitly]
-    sealed class AndroidAPILevelsInspector : IInspector<AndroidAPILevels>
+    sealed class AndroidAPILevelsInspector : Inspector<AndroidAPILevels>
     {
         PopupField<int> m_TargetApiPopup;
-        
-        public VisualElement Build(InspectorContext<AndroidAPILevels> context)
+
+        public override VisualElement Build()
         {
             var root = new VisualElement();
 
@@ -39,11 +39,6 @@ namespace Unity.Platforms.Android.Build
             root.contentContainer.Add(m_TargetApiPopup);
 
             return root;
-        }
-
-        public void Update(InspectorContext<AndroidAPILevels> context)
-        {
-            // Nothing to do.
         }
     }
 }
