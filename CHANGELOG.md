@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [0.2.2] - 2020-03-14
 
 ### Changed
-- Updated `com.unity.platforms` package version to `0.2.2-preview`.
+- Updated `com.unity.platforms` package version to `0.2.2-preview.1`.
 
 ## [0.2.1] - 2020-02-25
 
