@@ -292,7 +292,13 @@ public class UnityTinyActivity extends Activity {
 
         try
         {
-            dialogSemaphore.acquire();
+            boolean acquired = false;
+            while (!acquired)
+            {
+                acquired = dialogSemaphore.tryAcquire(100, java.util.concurrent.TimeUnit.MILLISECONDS);
+                if (!acquired)
+                    UnityTinyAndroidJNILib.broadcastDebuggerMessage();
+            }
         }
         catch (InterruptedException e)
         {

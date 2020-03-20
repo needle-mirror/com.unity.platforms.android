@@ -18,4 +18,5 @@ public class UnityTinyAndroidJNILib {
     public static native void start(String name);
     public static native void screenOrientationChanged(int orientation);
     public static native void deviceOrientationChanged(int orientation);
+    public static native void broadcastDebuggerMessage();
 }

@@ -261,6 +261,11 @@ get_natural_orientation_android()
     return env->CallStaticIntMethod(clazz, getNaturalOrientation);
 }
 
+#if UNITY_DOTSPLAYER_IL2CPP_WAIT_FOR_MANAGED_DEBUGGER
+
+typedef void(*BroadcastFunction)();
+static BroadcastFunction s_Broadcast = NULL;
+
 DOTS_EXPORT(void)
 show_debug_dialog(const char* message)
 {
@@ -273,12 +278,18 @@ show_debug_dialog(const char* message)
     env->DeleteLocalRef(jmessage);
 }
 
-#if UNITY_DOTSPLAYER_IL2CPP_WAIT_FOR_MANAGED_DEBUGGER
-
 DOTS_EXPORT(void)
-ShowDebuggerAttachDialog(const char* message)
+ShowDebuggerAttachDialog(const char* message, BroadcastFunction broadcast)
 {
+    s_Broadcast = broadcast;
     show_debug_dialog(message);
+}
+
+extern "C"
+JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_broadcastDebuggerMessage()
+{
+    if (s_Broadcast != NULL)
+        s_Broadcast();
 }
 
 #endif // UNITY_DOTSPLAYER_IL2CPP_WAIT_FOR_MANAGED_DEBUGGER
