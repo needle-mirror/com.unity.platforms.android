@@ -1,7 +1,7 @@
 {
   "name": "com.unity.platforms.android",
   "displayName": "Platforms Android",
-  "version": "0.2.2-preview.6",
+  "version": "0.2.2-preview.7",
   "unity": "2019.3",
   "unityRelease": "0f1",
   "description": "Provides platform and build specific features for the Android platform.",
@@ -11,12 +11,12 @@
     "android"
   ],
   "dependencies": {
-    "com.unity.platforms": "0.2.2-preview.6"
+    "com.unity.platforms": "0.2.2-preview.7"
   },
   "repository": {
-    "footprint": "36c8b0e93f5713020186466aa19f57e22fa52292",
+    "footprint": "7076182425663e3fc58fe4f25da32bed005de9c8",
     "type": "git",
     "url": "https://github.com/Unity-Technologies/dots-platforms.git",
-    "revision": "a7d0f2e6cd031baeb720d91fafec6a932bcd5842"
+    "revision": "83aeff16bc9c16f95d9c2818b6a08056dfa31c33"
   }
 }
