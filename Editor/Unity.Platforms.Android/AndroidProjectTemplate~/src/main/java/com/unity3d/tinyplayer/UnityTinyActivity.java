@@ -41,32 +41,37 @@ public class UnityTinyActivity extends Activity {
         mView = new UnityTinyView(mAssetManager, getCacheDir().getAbsolutePath(), this);
         mView.setOnTouchListener(new View.OnTouchListener() {
 
-            public boolean onTouch(View v, MotionEvent event) {
+            public boolean onTouch(View v, MotionEvent event)
+            {
                 int action = event.getActionMasked();
                 switch (action) {
                     case MotionEvent.ACTION_DOWN:
                     case MotionEvent.ACTION_POINTER_DOWN:
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_POINTER_UP:
-                    case MotionEvent.ACTION_CANCEL: {
-                        int index = event.getActionIndex();
-                        if (action == MotionEvent.ACTION_POINTER_DOWN) action = MotionEvent.ACTION_DOWN;
-                        else if (action == MotionEvent.ACTION_POINTER_UP) action = MotionEvent.ACTION_UP;
-                        UnityTinyAndroidJNILib.touchevent(event.getPointerId(index), action, (int)event.getX(index), (int)event.getY(index));
-                    }
-                        break;
-                    case MotionEvent.ACTION_MOVE: {
-                        for (int i = 0; i < event.getPointerCount(); ++i) {
-                            int pointerId = event.getPointerId(i);
-                            UnityTinyAndroidJNILib.touchevent(pointerId, action, (int)event.getX(i), (int)event.getY(i));
+                        {
+                            int index = event.getActionIndex();
+                            if (action == MotionEvent.ACTION_POINTER_DOWN) action = MotionEvent.ACTION_DOWN;
+                            else if (action == MotionEvent.ACTION_POINTER_UP) action = MotionEvent.ACTION_UP;
+                            UnityTinyAndroidJNILib.touchevent(event.getPointerId(index), action, (int)event.getX(index), (int)event.getY(index));
                         }
-                    }
+                        break;
+                    case MotionEvent.ACTION_CANCEL:
+                    case MotionEvent.ACTION_MOVE:
+                        {
+                            for (int i = 0; i < event.getPointerCount(); ++i)
+                            {
+                                int pointerId = event.getPointerId(i);
+                                UnityTinyAndroidJNILib.touchevent(pointerId, action, (int)event.getX(i), (int)event.getY(i));
+                            }
+                        }
                         break;
                 }
                 return true;
             }
         });
         setContentView(mView);
+        setFullScreen(true);
         mView.requestFocus();
 
         mOrientationListener = new OrientationEventListener(this, SensorManager.SENSOR_DELAY_NORMAL) {
@@ -93,6 +98,7 @@ public class UnityTinyActivity extends Activity {
         mNaturalOrientation = getNaturalOrientation(config.orientation);
         Log.d(TAG, "Natural device orientation: " + (mNaturalOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE ? "Landscape" : "Portrait"));
         mDeviceOrientation = getActualOrientation(config.orientation);
+        mScreenOrientation = mDeviceOrientation;
         UnityTinyAndroidJNILib.screenOrientationChanged(mDeviceOrientation);
         UnityTinyAndroidJNILib.deviceOrientationChanged(mDeviceOrientation);
     }
@@ -105,6 +111,23 @@ public class UnityTinyActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         mView.onResume();
+        setFullScreen(true);
+    }
+
+    private static int sFullscreenFlags =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+            View.SYSTEM_UI_FLAG_FULLSCREEN;
+
+    private void setFullScreen(boolean fullScreen)
+    {
+        int windowFlags = fullScreen ?
+            mView.getSystemUiVisibility() | sFullscreenFlags :
+            mView.getSystemUiVisibility() & ~sFullscreenFlags;
+        mView.setSystemUiVisibility(windowFlags);
     }
 
     @Override protected void onDestroy() {
@@ -132,6 +155,7 @@ public class UnityTinyActivity extends Activity {
 
     private final int k_AngleThreshold = 25;
     private int mDeviceOrientation;
+    private int mScreenOrientation;
     private int mNaturalOrientation;
     private void processOrientationChange(int angle)
     {
@@ -199,12 +223,32 @@ public class UnityTinyActivity extends Activity {
 
     public static void changeOrientation(int orientation)
     {
-        sActivity.setRequestedOrientation(orientation);
+        Log.d(TAG, "changeOrientation " + orientation);
+        sActivity.changeOrientationInternal(orientation);
     }
 
     public static int getNaturalOrientation()
     {
         return sActivity.mNaturalOrientation;
+    }
+
+    private void changeOrientationInternal(int orientation)
+    {
+        if (orientation != mScreenOrientation)
+        {
+            if (isLandscape(orientation) ^ isLandscape(mScreenOrientation))
+            {
+                // disabling surface until it is not updated if new and old orientations are not both portrait or landscape
+                mView.surfaceDisabled();
+            }
+            mScreenOrientation = orientation;
+            setRequestedOrientation(orientation);
+        }
+    }
+
+    private boolean isLandscape(int orientation)
+    {
+        return orientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE || orientation == ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
     }
 
     private int getNaturalOrientation(int orientation)

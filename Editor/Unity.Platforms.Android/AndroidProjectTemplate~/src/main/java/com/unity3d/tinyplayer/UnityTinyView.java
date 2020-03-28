@@ -149,6 +149,12 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
         m_Thread.m_SurfaceAvailable = false;
     }
 
+    public void surfaceDisabled()
+    {
+        Log.d(TAG, "surfaceDisabled");
+        m_Thread.m_SurfaceAvailable = false;
+    }
+
     public void onPause()
     {
         Log.d(TAG, "Pause");

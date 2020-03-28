@@ -118,6 +118,7 @@ namespace Unity.Tiny.Android
             config.focused = true;
             config.visible = true;
             config.orientation = m_screenOrientation;
+            Console.WriteLine($"Android Window init size {winw} x {winh} orientation {(int)m_screenOrientation}");
             config.frameWidth = winw;
             config.frameHeight = winh;
             int sw = 0, sh = 0;
@@ -165,7 +166,7 @@ namespace Unity.Tiny.Android
             {
                 if (config.autoSizeToFrame)
                 {
-                    Console.WriteLine("Android Window update size.");
+                    Console.WriteLine($"Android Window update size {winw} x {winh} orientation {(int)m_screenOrientation}");
                     if (config.orientation != m_screenOrientation)
                     {
                         PlatformEvents.SendScreenOrientationEvent(this, new ScreenOrientationEvent((int)m_screenOrientation));
