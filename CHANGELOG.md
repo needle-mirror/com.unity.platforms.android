@@ -4,7 +4,16 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2020-04-01
+
+### Changed
+- Updated `com.unity.platforms` package dependency.
+- Build pipeline assets have been replaced by class based build pipelines.
+
 ## [0.2.2] - 2020-03-23
+
+- Added device/screen orientation support
+- Added motion sensors support
 
 ### Changed
 - Updated `com.unity.platforms` package dependency.

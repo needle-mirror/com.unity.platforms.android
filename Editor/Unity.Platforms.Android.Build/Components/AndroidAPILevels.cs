@@ -1,41 +1,52 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Build;
 using Unity.Properties;
+using UnityEditor;
 
 namespace Unity.Platforms.Android.Build
 {
-    sealed class AndroidAPILevels : IBuildComponent
+    class AndroidAPILevels : IBuildComponent
     {
-        int m_MinAPILevel = 19;
-        int m_TargetAPILevel = 21;
-
-        internal static readonly Dictionary<int, string> s_AndroidCodeNames = new Dictionary<int, string>
-        {
-            { 19, "Android 4.4 'KitKat' (API level 19)" },
-            { 20, "Android 4.4W 'KitKat' (API level 20)" },
-            { 21, "Android 5.0 'Lollipop' (API level 21)" },
-            { 22, "Android 5.1 'Lollipop' (API level 22)" },
-            { 23, "Android 6.0 'Marshmallow' (API level 23)" },
-            { 24, "Android 7.0 'Nougat' (API level 24)" },
-            { 25, "Android 7.1 'Nougat' (API level 25)" },
-            { 26, "Android 8.0 'Oreo' (API level 26)" },
-            { 27, "Android 8.1 'Oreo' (API level 27)" },
-            { 28, "Android 9.0 'Pie' (API level 28)" },
-        };
+        const AndroidSdkVersions kMinAPILevel = AndroidSdkVersions.AndroidApiLevel19;
+        const AndroidSdkVersions kMaxAPILevel = AndroidSdkVersions.AndroidApiLevel28;
+        AndroidSdkVersions m_MinAPILevel = kMinAPILevel;
+        AndroidSdkVersions m_TargetAPILevel = AndroidSdkVersions.AndroidApiLevelAuto;
 
         [CreateProperty]
-        public int MinAPILevel
+        public AndroidSdkVersions MinAPILevel
         {
-            get => m_MinAPILevel;
-            set => m_MinAPILevel = s_AndroidCodeNames.ContainsKey(value) ? value : s_AndroidCodeNames.Keys.First();
+            get
+            {
+                if (m_MinAPILevel == AndroidSdkVersions.AndroidApiLevelAuto)
+                    return kMinAPILevel;
+                if (m_TargetAPILevel == AndroidSdkVersions.AndroidApiLevelAuto)
+                    return m_MinAPILevel;
+
+                // Min Level cannot be higher than target level
+                return (AndroidSdkVersions) Math.Min((int)m_MinAPILevel, (int)m_TargetAPILevel);
+            }
+
+            set => m_MinAPILevel = value;
         }
 
         [CreateProperty]
-        public int TargetAPILevel
+        public AndroidSdkVersions TargetAPILevel
         {
             get => m_TargetAPILevel;
-            set => m_TargetAPILevel = s_AndroidCodeNames.ContainsKey(value) ? value : s_AndroidCodeNames.Keys.First();
+            set => m_TargetAPILevel = value;
+        }
+
+        public AndroidSdkVersions ResolvedTargetAPILevel
+        {
+            get
+            {
+                // TODO this is wrong, user can set custom SDK, which might have higher target API installed
+                if (m_TargetAPILevel == AndroidSdkVersions.AndroidApiLevelAuto)
+                    return kMaxAPILevel;
+                return m_TargetAPILevel;
+            }
         }
     }
 }

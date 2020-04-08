@@ -3,6 +3,7 @@
     "references": [
         "Unity.Build",
         "Unity.Build.Classic",
+        "Unity.Build.Classic.Private",
         "Unity.Build.Common",
         "Unity.Build.Editor",
         "Unity.Properties",
@@ -15,9 +16,13 @@
     ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "bee.dll",
+        "Bee.Toolchain.Android.dll"
+    ],
     "autoReferenced": false,
     "defineConstraints": [],
-    "versionDefines": []
+    "versionDefines": [],
+    "noEngineReferences": false
 }

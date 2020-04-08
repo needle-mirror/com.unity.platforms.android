@@ -208,9 +208,8 @@ namespace Bee.Toolchain.Android
     {
         public override string Extension { get; } = "so";
 
-        // TODO uncomment WithStripAll when bee.exe which supports this method for AndroidDynamicLinker is available
         internal AndroidApkDynamicLibraryFormat(AndroidNdkToolchain toolchain) : base(
-            new AndroidDynamicLinker(toolchain).WithStripAll(true).AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
+            new AndroidDynamicLinker(toolchain).AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
         {
         }
     }
@@ -230,7 +229,7 @@ namespace Bee.Toolchain.Android
         public override string Extension { get; } = "apk";
 
         internal AndroidApkMainModuleFormat(AndroidNdkToolchain toolchain) : base(
-            new AndroidMainModuleLinker(toolchain).WithStripAll(true).AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
+            new AndroidMainModuleLinker(toolchain).AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
         {
         }
     }
@@ -239,7 +238,7 @@ namespace Bee.Toolchain.Android
     {
         private AndroidApkToolchain m_apkToolchain;
         private String m_gameName;
-        private CodeGen m_codeGen;
+        private DotsConfiguration m_config;
         private IEnumerable<IDeployable> m_supportFiles;
 
         public AndroidMainDynamicLibrary(NPath path, AndroidApkToolchain toolchain, params PrecompiledLibrary[] dynamicLibraryDependencies) : base(path, dynamicLibraryDependencies)
@@ -247,10 +246,10 @@ namespace Bee.Toolchain.Android
             m_apkToolchain = toolchain;
         }
 
-        public void SetAppPackagingParameters(String gameName, CodeGen codeGen, IEnumerable<IDeployable> supportFiles)
+        public void SetAppPackagingParameters(String gameName, DotsConfiguration config, IEnumerable<IDeployable> supportFiles)
         {
             m_gameName = gameName;
-            m_codeGen = codeGen;
+            m_config = config;
             m_supportFiles = supportFiles;
         }
 
@@ -269,7 +268,7 @@ namespace Bee.Toolchain.Android
 
             var javaLaunchPath = m_apkToolchain.JavaPath.Combine("bin").Combine("java");
             var gradleLaunchPath = m_apkToolchain.GetGradleLaunchJarPath();
-            var releaseApk = m_codeGen == CodeGen.Release;
+            var releaseApk = m_config == DotsConfiguration.Release;
             var gradleCommand = releaseApk ? "assembleRelease" : "assembleDebug";
             var deleteCommand = Unity.BuildTools.HostPlatform.IsWindows ? $"del /f /q {deployedPath.InQuotes(SlashMode.Native)} 2> nul" : $"rm -f {deployedPath.InQuotes(SlashMode.Native)}";
             var gradleExecutableString = $"{deleteCommand} && cd {gradleProjectPath.InQuotes()} && {javaLaunchPath.InQuotes()} -classpath {gradleLaunchPath.InQuotes()} org.gradle.launcher.GradleMain {gradleCommand} && cd {pathToRoot.InQuotes()}";

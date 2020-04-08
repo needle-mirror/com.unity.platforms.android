@@ -4,7 +4,7 @@ using UnityEditor;
 
 namespace Unity.Platforms.Android.Build
 {
-    sealed class AndroidArchitectures : IBuildComponent
+    class AndroidArchitectures : IBuildComponent
     {
         [CreateProperty]
         public AndroidArchitecture Architectures { get; set; } = AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64;
