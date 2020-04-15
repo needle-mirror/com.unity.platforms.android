@@ -5,7 +5,7 @@ using UnityEditor;
 
 namespace Unity.Platforms.Android.Build
 {
-    class AndroidApplySettingsStep : BuildStepBase
+    sealed class AndroidApplySettingsStep : BuildStepBase
     {
         public override Type[] UsedComponents { get; } =
         {

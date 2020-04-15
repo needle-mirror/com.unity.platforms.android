@@ -36,6 +36,7 @@ public class UnityTinyActivity extends Activity {
         super.onCreate(bundle);
 
         sActivity = this;
+        UnityTinyAndroidJNILib.setActivity(this);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         mAssetManager = getAssets();
         mView = new UnityTinyView(mAssetManager, getCacheDir().getAbsolutePath(), this);

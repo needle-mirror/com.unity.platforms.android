@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using Unity.Build;
-using Unity.Build.Classic;
+using Unity.Build.Classic.Private;
 using Unity.BuildSystem.NativeProgramSupport;
 using UnityEditor;
 

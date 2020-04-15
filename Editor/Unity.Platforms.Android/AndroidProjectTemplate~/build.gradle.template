@@ -6,7 +6,8 @@ buildscript {
 
     dependencies {
         classpath 'com.android.tools.build:gradle:3.2.0'
-}
+**KOTLINCLASSPATH**
+    }
 }
 
 allprojects {
@@ -20,6 +21,7 @@ allprojects {
 }
 
 apply plugin: 'com.android.application'
+**KOTLINPLUGIN**
 
 android {
     compileSdkVersion 28
@@ -70,6 +72,7 @@ android {
         doNotStrip '*/armeabi-v7a/*.so'
     }
 
+**DEPENDENCIES**
 
     bundle {
         language {

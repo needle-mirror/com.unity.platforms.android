@@ -4,9 +4,10 @@ package com.unity3d.tinyplayer;
 public class UnityTinyAndroidJNILib {
 
     static {
-        System.loadLibrary("**TINYLIBNAME**");
+**LOADLIBRARIES**
     }
 
+    public static native void setActivity(Object activity);
     public static native void init(Object surface, int width, int height);
     public static native void setAssetManager(Object assetManager);
     public static native void step();

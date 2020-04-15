@@ -15,9 +15,11 @@
 #include <time.h>
 #include <vector>
 #include <string>
+#include <AndroidWrapper.h>
 #include "AndroidSensors.h"
 
 static JavaVM* gJavaVm = NULL;
+static jobject tinyActivity = NULL;
 static void* m_libmain = NULL;
 static bool shouldClose = false;
 static int windowW = 0;
@@ -35,6 +37,18 @@ static void (*pausef)(int) = 0;
 static void (*destroyf)() = 0;
 static void (*screen_orientationf)(int) = 0;
 static void (*device_orientationf)(int) = 0;
+
+DOTS_EXPORT(jobject)
+get_activity()
+{
+    return tinyActivity;
+}
+
+DOTS_EXPORT(JavaVM*)
+get_javavm()
+{
+    return gJavaVm;
+}
 
 DOTS_EXPORT(bool)
 init_android() {
@@ -194,53 +208,6 @@ get_sensor_stream_android(int type, int *len)
     return m_AndroidSensors.GetSensorData(type, len);
 }
 
-class JavaVMThreadScope
-{
-public:
-    JavaVMThreadScope()
-    {
-        m_env = 0;
-        m_detached = gJavaVm->GetEnv((void**)&m_env, JNI_VERSION_1_2) == JNI_EDETACHED;
-        if (m_detached)
-        {
-            gJavaVm->AttachCurrentThread(&m_env, NULL);
-        }
-        CheckException();
-    }
-
-    ~JavaVMThreadScope()
-    {
-        CheckException();
-        if (m_detached)
-        {
-            gJavaVm->DetachCurrentThread();
-        }
-    }
-
-    JNIEnv* GetEnv()
-    {
-        return m_env;
-    }
-
-private:
-    JNIEnv* m_env;
-    bool m_detached;
-
-#if defined(DEBUG)
-    void CheckException()
-    {
-        if (!m_env->ExceptionCheck())
-            return;
-
-        __android_log_print(ANDROID_LOG_INFO, "AndroidWrapper", "Java exception detected");
-        m_env->ExceptionDescribe();
-        m_env->ExceptionClear();
-    }
-#else
-    void CheckException() {}
-#endif
-};
-
 DOTS_EXPORT(void)
 set_orientation_android(int orientation)
 {
@@ -293,6 +260,12 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_broadc
 }
 
 #endif // UNITY_DOTSPLAYER_IL2CPP_WAIT_FOR_MANAGED_DEBUGGER
+
+extern "C"
+JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_setActivity(JNIEnv * env, jobject obj, jobject activity)
+{
+    tinyActivity = env->NewGlobalRef(activity);
+}
 
 extern "C"
 JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_start(JNIEnv * env, jobject obj, jstring name)
@@ -389,6 +362,11 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_destro
     if (m_libmain)
         dlclose(m_libmain);
     m_AndroidSensors.ShutdownSensors();
+    if (tinyActivity != NULL)
+    {
+        env->DeleteGlobalRef(tinyActivity);
+        tinyActivity = NULL;
+    }
 }
 
 extern "C"

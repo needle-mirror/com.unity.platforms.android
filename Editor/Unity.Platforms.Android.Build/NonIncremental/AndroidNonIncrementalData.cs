@@ -1,7 +1,7 @@
 
 using System.IO;
 using Unity.Build;
-using Unity.Build.Classic;
+using Unity.Build.Classic.Private;
 using Unity.Build.Common;
 
 namespace Unity.Platforms.Android.Build

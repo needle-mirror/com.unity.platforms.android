@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using System.Linq;
 using Bee.NativeProgramSupport.Building;
 using Bee.Core;
@@ -270,27 +271,83 @@ namespace Bee.Toolchain.Android
             var gradleLaunchPath = m_apkToolchain.GetGradleLaunchJarPath();
             var releaseApk = m_config == DotsConfiguration.Release;
             var gradleCommand = releaseApk ? "assembleRelease" : "assembleDebug";
-            var deleteCommand = Unity.BuildTools.HostPlatform.IsWindows ? $"del /f /q {deployedPath.InQuotes(SlashMode.Native)} 2> nul" : $"rm -f {deployedPath.InQuotes(SlashMode.Native)}";
-            var gradleExecutableString = $"{deleteCommand} && cd {gradleProjectPath.InQuotes()} && {javaLaunchPath.InQuotes()} -classpath {gradleLaunchPath.InQuotes()} org.gradle.launcher.GradleMain {gradleCommand} && cd {pathToRoot.InQuotes()}";
+            var gradleExecutableString = $"cd {gradleProjectPath.InQuotes()} && {javaLaunchPath.InQuotes()} -classpath {gradleLaunchPath.InQuotes()} org.gradle.launcher.GradleMain {gradleCommand} && cd {pathToRoot.InQuotes()}";
 
             var apkPath = gradleProjectPath.Combine("build/outputs/apk").Combine(releaseApk ? "release/gradle-release.apk" : "debug/gradle-debug.apk");
 
             Backend.Current.AddAction(
                 actionName: "Build Gradle project",
                 targetFiles: new[] { apkPath },
-                inputs: m_apkToolchain.RequiredArtifacts.Append(mainLibPath).Concat(m_supportFiles.Select(d=>d.Path)).ToArray(),
+                inputs: m_apkToolchain.RequiredArtifacts.Append(mainLibPath).Concat(m_supportFiles.Select(d => d.Path)).ToArray(),
                 executableStringFor: gradleExecutableString,
                 commandLineArguments: Array.Empty<string>(),
                 allowUnexpectedOutput: false,
                 allowedOutputSubstrings: new[] { ":*", "BUILD SUCCESSFUL in *" }
             );
 
+            var localProperties = new StringBuilder();
+            localProperties.AppendLine($"sdk.dir={m_apkToolchain.SdkPath}");
+            localProperties.AppendLine($"ndk.dir={m_apkToolchain.Sdk.Path.MakeAbsolute()}");
+            var localPropertiesPath = gradleProjectPath.Combine("local.properties");
+            Backend.Current.AddWriteTextAction(localPropertiesPath, localProperties.ToString());
+            Backend.Current.AddDependency(apkPath, localPropertiesPath);
+
+            var hasGradleDependencies = false;
+            var gradleDependencies = new StringBuilder();
+            gradleDependencies.AppendLine("    dependencies {");
+            var hasKotlin = false;
+            foreach (var d in Deployables.Where(d => (d is DeployableFile)))
+            {
+                var f = d as DeployableFile;
+                if (f.Path.Extension == "aar" || f.Path.Extension == "jar")
+                {
+                    gradleDependencies.AppendLine($"        compile(name:'{f.Path.FileNameWithoutExtension}', ext:'{f.Path.Extension}')");
+                    hasGradleDependencies = true;
+                }
+                else if (f.Path.Extension == "kt")
+                {
+                    hasKotlin = true;
+                }
+            }
+            if (hasGradleDependencies)
+            {
+                gradleDependencies.AppendLine("    }");
+            }
+            else
+            {
+                gradleDependencies.Clear();
+            }
+
+            var kotlinClassPath = hasKotlin ? "        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.3.11'" : "";
+            var kotlinPlugin = hasKotlin ? "apply plugin: 'kotlin-android'" : "";
+
+            var loadLibraries = new StringBuilder();
             bool useStaticLib = Deployables.FirstOrDefault(l => l.ToString().Contains("lib_unity_tiny_android.so")) == default(IDeployable);
+            if (useStaticLib)
+            {
+                loadLibraries.AppendLine($"        System.loadLibrary(\"{m_gameName}\");");
+            }
+            else
+            {
+                var rx = new Regex(@".*lib([\w\d_]+)\.so", RegexOptions.Compiled);
+                foreach (var l in Deployables)
+                {
+                    var match = rx.Match(l.ToString());
+                    if (match.Success)
+                    {
+                        loadLibraries.AppendLine($"        System.loadLibrary(\"{match.Groups[1].Value}\");");
+                    }
+                }
+            }
+
             var templateStrings = new Dictionary<string, string>
             {
-                { "**TINYLIBNAME**", useStaticLib ? m_gameName : "_unity_tiny_android" },
+                { "**LOADLIBRARIES**", loadLibraries.ToString() },
                 { "**TINYNAME**", m_gameName.Replace("-","").ToLower() },
                 { "**GAMENAME**", m_gameName },
+                { "**DEPENDENCIES**", gradleDependencies.ToString() },
+                { "**KOTLINCLASSPATH**", kotlinClassPath },
+                { "**KOTLINPLUGIN**", kotlinPlugin },
             };
 
             // copy and patch project files
@@ -317,40 +374,43 @@ namespace Bee.Toolchain.Android
                 Backend.Current.AddDependency(apkPath, destPath);
             }
 
-            var localProperties = new StringBuilder();
-            localProperties.AppendLine($"sdk.dir={m_apkToolchain.SdkPath}");
-            localProperties.AppendLine($"ndk.dir={m_apkToolchain.Sdk.Path.MakeAbsolute()}");
-            var localPropertiesPath = gradleProjectPath.Combine("local.properties");
-            Backend.Current.AddWriteTextAction(localPropertiesPath, localProperties.ToString());
-            Backend.Current.AddDependency(apkPath, localPropertiesPath);
-
-            // copy additional resources and Data files
-            // TODO: better to use move from main lib directory
-            foreach (var r in m_supportFiles)
-            {
-                var targetAssetPath = gradleProjectPath.Combine("src/main/assets");
-                if (r.Path.FileName == "testconfig.json")
-                {
-                    targetAssetPath = buildPath.Combine(r.Path.FileName);
-                }
-                else if (r is DeployableFile && (r as DeployableFile).RelativeDeployPath != null)
-                {
-                    targetAssetPath = targetAssetPath.Combine((r as DeployableFile).RelativeDeployPath);
-                }
-                else
-                {
-                    targetAssetPath = targetAssetPath.Combine(r.Path.FileName);
-                }
-                Backend.Current.AddDependency(apkPath, CopyTool.Instance().Setup(targetAssetPath, r.Path));
-            }
-
             return CopyTool.Instance().Setup(deployedPath, apkPath);
         }
 
         public override BuiltNativeProgram DeployTo(NPath targetDirectory, Dictionary<IDeployable, IDeployable> alreadyDeployed = null)
         {
+            var gradleProjectPath = Path.Parent.Combine("gradle");
             // TODO: path should depend on toolchain (armv7/arm64)
-            var libDirectory = Path.Parent.Combine("gradle/src/main/jniLibs/armeabi-v7a");
+            var libDirectory = gradleProjectPath.Combine("src/main/jniLibs/armeabi-v7a");
+
+            for (int i = 0; i < Deployables.Length; ++i)
+            {
+                if (Deployables[i] is DeployableFile)
+                {
+                    var f = Deployables[i] as DeployableFile;
+                    var targetPath = gradleProjectPath.Combine("src/main/assets");
+                    if (f.Path.Extension == "java")
+                    {
+                        targetPath = gradleProjectPath.Combine("src/main/java");
+                    }
+                    if (f.Path.Extension == "kt")
+                    {
+                        targetPath = gradleProjectPath.Combine("src/main/kotlin");
+                    }
+                    else if (f.Path.Extension == "aar" || f.Path.Extension == "jar")
+                    {
+                        targetPath = gradleProjectPath.Combine("libs");
+                    }
+                    else if (f.Path.FileName == "testconfig.json")
+                    {
+                        targetPath = targetDirectory;
+                    }
+                    targetPath = targetPath.Combine(f.RelativeDeployPath ?? f.Path.FileName);
+
+                    Deployables[i] = new DeployableFile(f.Path, targetPath.RelativeTo(libDirectory));
+                }
+            }
+
             var result = base.DeployTo(libDirectory, alreadyDeployed);
 
             return new Executable(PackageApp(targetDirectory, result.Path));
