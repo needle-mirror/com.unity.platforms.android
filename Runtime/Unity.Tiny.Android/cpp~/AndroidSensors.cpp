@@ -9,6 +9,7 @@ int AndroidSensors::SensorCallbackFunc(int fd, int events, void* data)
     if (!queue)
         return 0;   // "0 to have this file descriptor and callback unregistered from the looper"
 
+    std::lock_guard<std::mutex> lock(sensors->m_SensorsDataLock);
     while (ASensorEventQueue_hasEvents(queue) > 0)
     {
         const int kEventBufferSize = 8;
@@ -165,5 +166,17 @@ void AndroidSensors::ResetSensorsData()
     for (auto item = m_Sensors.begin(); item != m_Sensors.end(); ++item)
     {
         item->second->m_Data.clear();
+    }
+}
+
+void AndroidSensors::LockSensorsData(bool lock)
+{
+    if (lock)
+    {
+        m_SensorsDataLock.lock();
+    }
+    else
+    {
+        m_SensorsDataLock.unlock();
     }
 }

@@ -2,6 +2,7 @@ package com.unity3d.tinyplayer;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.os.Handler;
 import android.os.Bundle;
 import android.os.Process;
 import android.util.Log;
@@ -18,6 +19,8 @@ import android.content.res.AssetManager;
 import android.content.res.Configuration;
 import android.content.pm.ActivityInfo;
 import android.content.DialogInterface;
+import android.provider.Settings;
+import android.database.ContentObserver;
 import java.io.File;
 import java.util.concurrent.Semaphore;
 
@@ -25,12 +28,13 @@ public class UnityTinyActivity extends Activity {
 
     static UnityTinyActivity sActivity;
 
-    UnityTinyView mView;
-    AssetManager mAssetManager;
-    OrientationEventListener mOrientationListener;
-    WindowManager mWindowManager;
+    private UnityTinyView mView;
+    private AssetManager mAssetManager;
+    private OrientationEventListener mOrientationListener;
+    private WindowManager mWindowManager;
+    private ContentObserver mRotationObserver;
 
-    private static String TAG = "UnityTinyActivity";
+    private static final String TAG = "UnityTinyActivity";
 
     @Override protected void onCreate(Bundle bundle) {
         super.onCreate(bundle);
@@ -84,33 +88,52 @@ public class UnityTinyActivity extends Activity {
             }
         };
 
-        if (mOrientationListener.canDetectOrientation())
-        {
-            mOrientationListener.enable();
-        }
-        else
+        if (!mOrientationListener.canDetectOrientation())
         {
             Log.v(TAG, "Cannot detect orientation");
             mOrientationListener.disable();
         }
+
+        mRotationObserver = new ContentObserver(new Handler()) {
+
+            @Override
+            public void onChange(boolean selfChange) {
+                mIsOrientationLocked = getOrientationLocked();
+                Log.d(TAG, "Change orientation locked: " + mIsOrientationLocked);
+                if (!mIsOrientationLocked)
+                {
+                    mView.onOrientationChanged(mDeviceOrientation);
+                }
+                super.onChange(selfChange);
+            }
+
+            @Override
+            public boolean deliverSelfNotifications() {
+                return true;
+            }
+        };
 
         mWindowManager = (WindowManager)getSystemService(Context.WINDOW_SERVICE);
         Configuration config = getResources().getConfiguration();
         mNaturalOrientation = getNaturalOrientation(config.orientation);
         Log.d(TAG, "Natural device orientation: " + (mNaturalOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE ? "Landscape" : "Portrait"));
         mDeviceOrientation = getActualOrientation(config.orientation);
+        Log.d(TAG, "Start device orientation: "+ mDeviceOrientation);
         mScreenOrientation = mDeviceOrientation;
         UnityTinyAndroidJNILib.screenOrientationChanged(mDeviceOrientation);
-        UnityTinyAndroidJNILib.deviceOrientationChanged(mDeviceOrientation);
+        mView.onOrientationChanged(mDeviceOrientation);
+        setRequestedOrientation(mDeviceOrientation);
     }
 
     @Override protected void onPause() {
+        stopOrientationProcessing();
         mView.onPause();
         super.onPause();
     }
 
     @Override protected void onResume() {
         super.onResume();
+        startOrientationProcessing();
         mView.onResume();
         setFullScreen(true);
     }
@@ -132,7 +155,6 @@ public class UnityTinyActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
-        mOrientationListener.disable();
         mView.onDestroy();
         super.onDestroy();
         Process.killProcess(Process.myPid());
@@ -155,6 +177,7 @@ public class UnityTinyActivity extends Activity {
     }
 
     private final int k_AngleThreshold = 25;
+    private boolean mIsOrientationLocked;
     private int mDeviceOrientation;
     private int mScreenOrientation;
     private int mNaturalOrientation;
@@ -207,9 +230,11 @@ public class UnityTinyActivity extends Activity {
         }
         if (deviceOrientation != mDeviceOrientation)
         {
-            Log.d(TAG, "deviceOrientationChanged " + deviceOrientation);
-            UnityTinyAndroidJNILib.deviceOrientationChanged(deviceOrientation);
             mDeviceOrientation = deviceOrientation;
+            if (!mIsOrientationLocked)
+            {
+                mView.onOrientationChanged(mDeviceOrientation);
+            }
         }
     }
 
@@ -250,6 +275,18 @@ public class UnityTinyActivity extends Activity {
     private boolean isLandscape(int orientation)
     {
         return orientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE || orientation == ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
+    }
+
+    private boolean getOrientationLocked()
+    {
+        try
+        {
+            return Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION) == 0;
+        }
+        catch (Settings.SettingNotFoundException e)
+        {
+            return false;
+        }
     }
 
     private int getNaturalOrientation(int orientation)
@@ -305,6 +342,31 @@ public class UnityTinyActivity extends Activity {
         }
         // unknown
         return mNaturalOrientation;
+    }
+
+    private void startOrientationProcessing()
+    {
+        mIsOrientationLocked = getOrientationLocked();
+        Log.d(TAG, "Orientation locked: "+ mIsOrientationLocked);
+
+        Configuration config = getResources().getConfiguration();
+        mDeviceOrientation = getActualOrientation(config.orientation);
+        if (!mIsOrientationLocked)
+        {
+            mView.onOrientationChanged(mDeviceOrientation);
+        }
+
+        if (mOrientationListener.canDetectOrientation())
+        {
+            mOrientationListener.enable();
+        }
+        getContentResolver().registerContentObserver(Settings.System.getUriFor(Settings.System.ACCELEROMETER_ROTATION), false, mRotationObserver);
+    }
+
+    private void stopOrientationProcessing()
+    {
+        mOrientationListener.disable();
+        getContentResolver().unregisterContentObserver(mRotationObserver);
     }
 
     private AlertDialog debugDialog;

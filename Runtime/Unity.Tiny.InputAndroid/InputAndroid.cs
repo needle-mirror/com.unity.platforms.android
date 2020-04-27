@@ -37,6 +37,7 @@ namespace Unity.Tiny.Android
 
         protected override void OnUpdate()
         {
+            AndroidNativeCalls.inputStreamsLock(true);
             base.OnUpdate(); // advances input state one frame
             unsafe
             {
@@ -77,7 +78,8 @@ namespace Unity.Tiny.Android
                     m_inputState.hasTouch = true;
             }
 
-            AndroidNativeCalls.resetStreams();
+            AndroidNativeCalls.resetInputStreams();
+            AndroidNativeCalls.inputStreamsLock(false);
         }
 
         // copy from Android NDK keycodes.h

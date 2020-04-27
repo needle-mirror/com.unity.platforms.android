@@ -15,15 +15,17 @@ import android.os.Looper;
 
 class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
 {
-    enum RunStateEvent { PAUSE, RESUME, QUIT, NEXT_FRAME };
+    enum RunStateEvent { PAUSE, RESUME, QUIT, ORIENTATION, NEXT_FRAME };
     private static final int RUN_STATE_CHANGED_MSG_CODE = 2269;
     private static final int ANR_TIMEOUT_SECONDS = 4;
 
     private class UnityTinyThread extends Thread
     {
-        Handler m_Handler;
-        SurfaceHolder m_Holder;
-        boolean m_Running = false;
+        private static final String TAG = "UnityTinyThread";
+
+        private Handler m_Handler;
+        private SurfaceHolder m_Holder;
+        private boolean m_Running = false;
 
         public boolean m_SurfaceAvailable = false;
 
@@ -58,21 +60,26 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
                     }
                     else if (runState == RunStateEvent.QUIT)
                     {
-                        Log.d(TAG, "Thread QUIT");
+                        Log.d(TAG, "Quit");
                         UnityTinyAndroidJNILib.destroy();
                         Looper.myLooper().quit();
                     }
                     else if (runState == RunStateEvent.RESUME)
                     {
-                        Log.d(TAG, "Thread RESUME");
+                        Log.d(TAG, "Resume");
                         UnityTinyAndroidJNILib.pause(0);
                         m_Running = true;
                     }
                     else if (runState == RunStateEvent.PAUSE)
                     {
-                        Log.d(TAG, "Thread PAUSE");
+                        Log.d(TAG, "Pause");
                         UnityTinyAndroidJNILib.pause(1);
                         m_Running = false;
+                    }
+                    else if (runState == RunStateEvent.ORIENTATION)
+                    {
+                        Log.d(TAG, "Device orientation changed " + msg.arg1);
+                        UnityTinyAndroidJNILib.deviceOrientationChanged(msg.arg1);
                     }
 
                     // trigger next frame
@@ -99,6 +106,12 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
             dispatchRunStateEvent(RunStateEvent.RESUME);
         }
 
+        public void orientationChanged(int orientation)
+        {
+            if (m_Handler != null)
+                Message.obtain(m_Handler, RUN_STATE_CHANGED_MSG_CODE, orientation, 0, RunStateEvent.ORIENTATION).sendToTarget();
+        }
+
         public void pauseExecution(Runnable runnable)
         {
             if (m_Handler == null)
@@ -114,7 +127,7 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
         }
     }
 
-    private static String TAG = "UnityTinyView";
+    private static final String TAG = "UnityTinyView";
     private UnityTinyThread m_Thread;
 
     public UnityTinyView(AssetManager assetManager, String path, Context context)
@@ -190,5 +203,11 @@ class UnityTinyView extends SurfaceView implements SurfaceHolder.Callback
     {
         Log.d(TAG, "Destroy");
         m_Thread.quit();
+    }
+
+    public void onOrientationChanged(int orientation)
+    {
+        Log.d(TAG, "Device orientation changed " + orientation);
+        m_Thread.orientationChanged(orientation);
     }
 }

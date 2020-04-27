@@ -3,6 +3,7 @@
 #include <android/log.h>
 #include <android/sensor.h>
 #include <vector>
+#include <mutex>
 #include <unordered_map>
 
 class SensorData
@@ -16,6 +17,7 @@ public:
 class AndroidSensors
 {
 private:
+    std::mutex m_SensorsDataLock;
     std::unordered_map<int, SensorData*> m_Sensors;
     ASensorEventQueue* m_SensorEventQueue;
 
@@ -38,6 +40,8 @@ public:
     bool EnableSensor(int type, bool enable, int rate);
 
     const double* GetSensorData(int type, int *len);
+
+    void LockSensorsData(bool lock);
 };
 
 extern AndroidSensors m_AndroidSensors;

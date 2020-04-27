@@ -15,6 +15,7 @@
 #include <time.h>
 #include <vector>
 #include <string>
+#include <mutex>
 #include <AndroidWrapper.h>
 #include "AndroidSensors.h"
 
@@ -31,6 +32,8 @@ static ANativeWindow *nativeWindow = NULL;
 // input
 static std::vector<int> touch_info_stream;
 static std::vector<int> key_stream;
+static std::mutex key_stream_lock;
+static std::mutex touch_stream_lock;
 // c# delegates
 static bool (*raf)() = 0;
 static void (*pausef)(int) = 0;
@@ -159,6 +162,22 @@ device_orientationcallbackinit_android(void (*func)(int)) {
     return true;
 }
 
+DOTS_EXPORT(void)
+input_streams_lock_android(bool lock)
+{
+    if (lock)
+    {
+        key_stream_lock.lock();
+        touch_stream_lock.lock();
+    }
+    else
+    {
+        key_stream_lock.unlock();
+        touch_stream_lock.unlock();
+    }
+    m_AndroidSensors.LockSensorsData(lock);
+}
+
 DOTS_EXPORT(const int*)
 get_touch_info_stream_android(int *len) {
     if (len == NULL)
@@ -175,7 +194,7 @@ get_key_stream_android(int *len)
 }
 
 DOTS_EXPORT(void)
-reset_android_input()
+reset_input_android()
 {
     touch_info_stream.clear();
     key_stream.clear();
@@ -189,13 +208,13 @@ get_native_window_android()
 }
 
 DOTS_EXPORT(bool)
-available_sensor(int type)
+available_sensor_android(int type)
 {
     return m_AndroidSensors.AvailableSensor(type);
 }
 
 DOTS_EXPORT(bool)
-enable_sensor(int type, bool enable, int rate)
+enable_sensor_android(int type, bool enable, int rate)
 {
     return m_AndroidSensors.EnableSensor(type, enable, rate);
 }
@@ -372,6 +391,7 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_destro
 extern "C"
 JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_touchevent(JNIEnv* env, jobject obj, jint id, jint action, jint xpos, jint ypos)
 {
+    std::lock_guard<std::mutex> lock(touch_stream_lock);
     touch_info_stream.push_back((int)id);
     touch_info_stream.push_back((int)action);
     touch_info_stream.push_back((int)xpos);
@@ -382,6 +402,7 @@ extern "C"
 JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_keyevent(JNIEnv* env, jobject obj, jint key, jint scancode, jint action, jint mods)
 {
     __android_log_print(ANDROID_LOG_INFO, "AndroidWrapper", "Key %d scancode %d action %d mods %d\n", key, scancode, action, mods);
+    std::lock_guard<std::mutex> lock(key_stream_lock);
     key_stream.push_back(key);
     key_stream.push_back(scancode);
     key_stream.push_back(action);

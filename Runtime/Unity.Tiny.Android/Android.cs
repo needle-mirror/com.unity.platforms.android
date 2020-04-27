@@ -161,16 +161,17 @@ namespace Unity.Tiny.Android
             var env = World.GetExistingSystem<TinyEnvironment>();
             var config = env.GetConfigData<DisplayInfo>();
             int winw = 0, winh = 0;
+            var orientation = m_screenOrientation;
             AndroidNativeCalls.getWindowSize(ref winw, ref winh);
-            if (winw != config.width || winh != config.height || m_screenOrientation != config.orientation)
+            if (winw != config.width || winh != config.height || orientation != config.orientation)
             {
                 if (config.autoSizeToFrame)
                 {
-                    Console.WriteLine($"Android Window update size {winw} x {winh} orientation {(int)m_screenOrientation}");
-                    if (config.orientation != m_screenOrientation)
+                    Console.WriteLine($"Android Window update size {winw} x {winh} orientation {(int)orientation}");
+                    if (config.orientation != orientation)
                     {
-                        PlatformEvents.SendScreenOrientationEvent(this, new ScreenOrientationEvent((int)m_screenOrientation));
-                        config.orientation = m_screenOrientation;
+                        PlatformEvents.SendScreenOrientationEvent(this, new ScreenOrientationEvent((int)orientation));
+                        config.orientation = orientation;
                     }
                     config.width = winw;
                     config.height = winh;
@@ -309,7 +310,6 @@ namespace Unity.Tiny.Android
                 if ((deviceOrientation & m_screenOrientationMask) != 0)
                 {
                     AndroidNativeCalls.setOrientation(orientation);
-                    m_screenOrientation = deviceOrientation;
                 }
                 m_deviceOrientation = deviceOrientation;
             }
@@ -370,19 +370,22 @@ namespace Unity.Tiny.Android
         [DllImport("lib_unity_tiny_android", EntryPoint = "get_touch_info_stream_android")]
         public static extern unsafe int * getTouchInfoStream(ref int len);
 
+        [DllImport("lib_unity_tiny_android", EntryPoint = "input_streams_lock_android")]
+        public static extern void inputStreamsLock(bool lck);
+
         [DllImport("lib_unity_tiny_android", EntryPoint = "get_key_stream_android")]
         public static extern unsafe int * getKeyStream(ref int len);
 
         [DllImport("lib_unity_tiny_android", EntryPoint = "get_native_window_android")]
         public static extern long getNativeWindow();
 
-        [DllImport("lib_unity_tiny_android", EntryPoint = "reset_android_input")]
-        public static extern void resetStreams();
+        [DllImport("lib_unity_tiny_android", EntryPoint = "reset_input_android")]
+        public static extern void resetInputStreams();
 
-        [DllImport("lib_unity_tiny_android", EntryPoint = "available_sensor")]
+        [DllImport("lib_unity_tiny_android", EntryPoint = "available_sensor_android")]
         public static extern bool availableSensor(int type);
 
-        [DllImport("lib_unity_tiny_android", EntryPoint = "enable_sensor")]
+        [DllImport("lib_unity_tiny_android", EntryPoint = "enable_sensor_android")]
         public static extern bool enableSensor(int type, bool enable, int rate);
 
         [DllImport("lib_unity_tiny_android", EntryPoint = "get_sensor_stream_android")]

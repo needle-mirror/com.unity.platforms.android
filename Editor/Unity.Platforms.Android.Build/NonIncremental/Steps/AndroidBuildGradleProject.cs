@@ -5,6 +5,7 @@ using Unity.Build;
 using Unity.Build.Classic.Private;
 using Unity.Build.Common;
 using UnityEngine;
+using Unity.Build.Classic;
 
 #if UNITY_ANDROID
 using UnityEditor.Android;
@@ -16,7 +17,8 @@ namespace Unity.Platforms.Android.Build
     {
         public override bool IsEnabled(BuildContext context)
         {
-            return context.GetComponentOrDefault<AndroidExportSettings>().ExportProject == false;
+            return context.GetComponentOrDefault<AndroidExportSettings>().ExportProject == false &&
+                 context.HasComponent<InstallInBuildFolder>() == false;
         }
 
         public override BuildResult Run(BuildContext context)

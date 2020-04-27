@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Unity.Build;
+using Unity.Build.Classic;
 using Unity.Build.Classic.Private;
 using Unity.BuildSystem.NativeProgramSupport;
 using UnityEditor;
@@ -121,6 +122,20 @@ namespace Unity.Platforms.Android.Build
 #else
             return context.Failure("Active Editor platform has to be set to Android.");
 #endif
+        }
+
+        public override DirectoryInfo GetOutputBuildDirectory(BuildConfiguration config)
+        {
+            if (config.HasComponent<InstallInBuildFolder>())
+            {
+                var path = UnityEditor.BuildPipeline.GetPlaybackEngineDirectory(BuildTarget.Android, BuildOptions.None);
+                path = Path.Combine(path, "SourceBuild", config.GetComponentOrDefault<Unity.Build.Common.GeneralSettings>().ProductName);
+                return new DirectoryInfo(path);
+            }
+            else
+            {
+                return base.GetOutputBuildDirectory(config);
+            }
         }
     }
 }
