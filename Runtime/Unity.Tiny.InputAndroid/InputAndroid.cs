@@ -59,25 +59,27 @@ namespace Unity.Tiny.Android
                         m_inputState.KeyDown(translatedKey);
                 }
 
-                // touch
+                // touch & simulate mouse
+                m_inputState.hasMouse = false;
                 int touchInfoStreamLen = 0;
                 int* touchInfoStream = AndroidNativeCalls.getTouchInfoStream(ref touchInfoStreamLen);
                 for (int i = 0; i < touchInfoStreamLen; i += 4)
                 {
-                    if (touchInfoStream[i + 1] == ACTION_DOWN)
-                        m_inputState.TouchEvent(touchInfoStream[i], TouchState.Began, touchInfoStream[i + 2], touchInfoStream[i + 3]);
-                    else if (touchInfoStream[i + 1] == ACTION_UP)
-                        m_inputState.TouchEvent(touchInfoStream[i], TouchState.Ended, touchInfoStream[i + 2], touchInfoStream[i + 3]);
-                    else if (touchInfoStream[i + 1] == ACTION_MOVE)
-                        m_inputState.TouchEvent(touchInfoStream[i], TouchState.Moved, touchInfoStream[i + 2], touchInfoStream[i + 3]);
-                    else if (touchInfoStream[i + 1] == ACTION_CANCEL)
-                        m_inputState.TouchEvent(touchInfoStream[i], TouchState.Canceled, touchInfoStream[i + 2], touchInfoStream[i + 3]);
+                    var id = touchInfoStream[i];
+                    var x = touchInfoStream[i + 2];
+                    var y = touchInfoStream[i + 3];
+                    TouchState phase;
+                    switch (touchInfoStream[i + 1])
+                    {
+                        case ACTION_DOWN : phase = TouchState.Began; break;
+                        case ACTION_UP : phase = TouchState.Ended; break;
+                        case ACTION_MOVE : phase = TouchState.Moved; break;
+                        case ACTION_CANCEL : phase = TouchState.Canceled; break;
+                        default : continue;
+                    }
+                    ProcessTouch(id, phase, x, y);
                 }
-
-                if (touchInfoStreamLen != 0)
-                    m_inputState.hasTouch = true;
             }
-
             AndroidNativeCalls.resetInputStreams();
             AndroidNativeCalls.inputStreamsLock(false);
         }
