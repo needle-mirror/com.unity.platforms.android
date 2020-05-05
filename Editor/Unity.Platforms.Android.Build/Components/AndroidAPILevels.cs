@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using Unity.Build;
 using Unity.Properties;
 using UnityEditor;
@@ -25,7 +23,7 @@ namespace Unity.Platforms.Android.Build
                     return m_MinAPILevel;
 
                 // Min Level cannot be higher than target level
-                return (AndroidSdkVersions) Math.Min((int)m_MinAPILevel, (int)m_TargetAPILevel);
+                return (AndroidSdkVersions)Math.Min((int)m_MinAPILevel, (int)m_TargetAPILevel);
             }
 
             set => m_MinAPILevel = value;

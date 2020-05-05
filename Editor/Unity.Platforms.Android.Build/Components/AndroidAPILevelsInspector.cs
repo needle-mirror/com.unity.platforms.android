@@ -26,11 +26,11 @@ namespace Unity.Platforms.Android.Build
             { 28, "Android 9.0 'Pie' (API level 28)" },
         };
 
-        private int ResolveIndex (List<int> choices, AndroidSdkVersions apiLevel)
+        private int ResolveIndex(List<int> choices, AndroidSdkVersions apiLevel)
         {
             for (int i = 0; i < choices.Count; i++)
             {
-                if (choices [i] == (int)apiLevel)
+                if (choices[i] == (int)apiLevel)
                 {
                     return i;
                 }

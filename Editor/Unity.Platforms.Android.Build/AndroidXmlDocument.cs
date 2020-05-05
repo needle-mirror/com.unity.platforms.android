@@ -1,8 +1,7 @@
+using NiceIO;
 using System;
 using System.IO;
-using System.Text;
 using System.Xml;
-using NiceIO;
 
 namespace Unity.Platforms.Android.Build
 {

@@ -2,10 +2,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using Unity.Build;
+using Unity.Build.Classic;
 using Unity.Build.Classic.Private;
 using Unity.Build.Common;
 using UnityEngine;
-using Unity.Build.Classic;
 
 #if UNITY_ANDROID
 using UnityEditor.Android;

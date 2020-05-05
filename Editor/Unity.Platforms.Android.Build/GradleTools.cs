@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Xml;
-using NiceIO;
 
 namespace Unity.Platforms.Android.Build
 {
