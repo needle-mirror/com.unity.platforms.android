@@ -70,6 +70,8 @@ namespace Unity.Platforms.Android.Build
 
         protected override RunResult OnRun(RunContext context)
         {
+            AndroidClassicPipelineShared.SetupPlayerConnection(context);
+
 #if UNITY_ANDROID
             var artifact = context.GetLastBuildArtifact<AndroidArtifact>();
             var fileName = artifact.OutputTargetFile.FullName;
