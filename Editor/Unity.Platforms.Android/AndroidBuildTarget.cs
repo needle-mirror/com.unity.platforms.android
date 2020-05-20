@@ -7,11 +7,21 @@ using Unity.Build.Android;
 
 namespace Unity.Platforms.Android
 {
-    public class AndroidBuildTarget : BuildTarget
+    public class AndroidBuildTarget32 : AndroidBuildTarget
+    {
+        public override string DisplayName => "Android32";
+        public override string BeeTargetName => "android_armv7";
+    }
+
+    public class AndroidBuildTarget64 : AndroidBuildTarget
+    {
+        public override string DisplayName => "Android64";
+        public override string BeeTargetName => "android_arm64";
+    }
+
+    public abstract class AndroidBuildTarget : BuildTarget
     {
         public override bool CanBuild => true;
-        public override string DisplayName => "Android";
-        public override string BeeTargetName => "android_armv7";
         public override string ExecutableExtension => ".apk";
         public override string UnityPlatformName => nameof(UnityEditor.BuildTarget.Android);
         public override bool UsesIL2CPP => true;

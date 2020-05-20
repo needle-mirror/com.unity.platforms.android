@@ -127,6 +127,7 @@ namespace Unity.Tiny.Android
             config.screenHeight = sh;
             config.width = winw;
             config.height = winh;
+            config.screenDpiScale = 1.0f;
             int fbw = 0, fbh = 0;
             AndroidNativeCalls.getFramebufferSize(ref fbw, ref fbh);
             config.framebufferWidth = fbw;

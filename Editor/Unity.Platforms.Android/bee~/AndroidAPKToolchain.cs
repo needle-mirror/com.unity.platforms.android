@@ -20,7 +20,8 @@ namespace Bee.Toolchain.Android
 {
     internal class AndroidApkToolchain : AndroidNdkToolchain
     {
-        private static AndroidApkToolchain ToolChain_AndroidArmv7 { get; set; } = null;
+        private static AndroidApkToolchain ToolChain_AndroidArmv7 = null;
+        private static AndroidApkToolchain ToolChain_AndroidArm64 = null;
 
         public override CLikeCompiler CppCompiler { get; }
         public override NativeProgramFormat DynamicLibraryFormat { get; }
@@ -39,17 +40,29 @@ namespace Bee.Toolchain.Android
             public string GradlePath;
         }
 
-        public static AndroidApkToolchain GetToolChain(bool useStatic)
+        public static AndroidApkToolchain GetToolChain(bool useStatic, Architecture architecture)
         {
-            if (ToolChain_AndroidArmv7 == null)
+            if (architecture is Arm64Architecture)
+            {
+                return GetOrCreateToolchain(useStatic, architecture, ref ToolChain_AndroidArm64);
+            }
+            else
+            {
+                return GetOrCreateToolchain(useStatic, architecture, ref ToolChain_AndroidArmv7);
+            }
+        }
+
+        private static AndroidApkToolchain GetOrCreateToolchain(bool useStatic, Architecture architecture, ref AndroidApkToolchain toolchain)
+        {
+            if (toolchain == null)
             {
                 var androidConfig = ReadConfigFromFile();
+                var locator = new AndroidNdkLocator(architecture);
                 var androidNdk = string.IsNullOrEmpty(androidConfig.NdkPath) ?
-                    AndroidNdk.LocatorArmv7.UserDefaultOrDummy:
-                    AndroidNdk.LocatorArmv7.UseSpecific(androidConfig.NdkPath);
-                ToolChain_AndroidArmv7 = new AndroidApkToolchain(androidNdk, androidConfig.SdkPath, androidConfig.JavaPath, androidConfig.GradlePath, useStatic);
+                    locator.UserDefaultOrDummy : locator.UseSpecific(androidConfig.NdkPath);
+                toolchain = new AndroidApkToolchain(androidNdk, androidConfig.SdkPath, androidConfig.JavaPath, androidConfig.GradlePath, useStatic);
             }
-            return ToolChain_AndroidArmv7;
+            return toolchain;
         }
 
         private static AndroidConfig ReadConfigFromFile()
@@ -340,11 +353,22 @@ namespace Bee.Toolchain.Android
                 }
             }
 
+            StringBuilder abiFilters = new StringBuilder();
+            if (m_apkToolchain.Architecture is Arm64Architecture)
+            {
+                abiFilters.Append("'arm64-v8a'");
+            }
+            else
+            {
+                abiFilters.Append("'armeabi-v7a'");
+            }
+
             var templateStrings = new Dictionary<string, string>
             {
                 { "**LOADLIBRARIES**", loadLibraries.ToString() },
                 { "**TINYNAME**", m_gameName.Replace("-","").ToLower() },
                 { "**GAMENAME**", m_gameName },
+                { "**ABIFILTERS**", abiFilters.ToString() },
                 { "**DEPENDENCIES**", gradleDependencies.ToString() },
                 { "**KOTLINCLASSPATH**", kotlinClassPath },
                 { "**KOTLINPLUGIN**", kotlinPlugin },
@@ -380,8 +404,8 @@ namespace Bee.Toolchain.Android
         public override BuiltNativeProgram DeployTo(NPath targetDirectory, Dictionary<IDeployable, IDeployable> alreadyDeployed = null)
         {
             var gradleProjectPath = Path.Parent.Combine("gradle");
-            // TODO: path should depend on toolchain (armv7/arm64)
-            var libDirectory = gradleProjectPath.Combine("src/main/jniLibs/armeabi-v7a");
+            var libDirectory = gradleProjectPath.Combine("src/main/jniLibs");
+            libDirectory = libDirectory.Combine(m_apkToolchain.Architecture is Arm64Architecture ? "arm64-v8a" : "armeabi-v7a");
 
             for (int i = 0; i < Deployables.Length; ++i)
             {

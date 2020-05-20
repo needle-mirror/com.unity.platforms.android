@@ -3,17 +3,26 @@ using Bee.Toolchain.Android;
 using DotsBuildTargets;
 using Unity.BuildSystem.NativeProgramSupport;
 
-// TODO: create Arm64 target
-class DotsAndroidTargetArmv7 : DotsBuildSystemTarget
+abstract class DotsAndroidTarget : DotsBuildSystemTarget
 {
     protected override NativeProgramFormat GetExecutableFormatForConfig(DotsConfiguration config, bool enableManagedDebugger)
     {
         return new AndroidApkMainModuleFormat(ToolChain as AndroidApkToolchain);
     }
 
+    public override bool CanUseBurst { get; } = true;
+}
+
+class DotsAndroidTargetArmv7 : DotsAndroidTarget
+{
     public override string Identifier => "android_armv7";
 
-    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain(true);
+    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain(true, new ARMv7Architecture());
+}
 
-    public override bool CanUseBurst { get; } = true;
+class DotsAndroidTargetArm64 : DotsAndroidTarget
+{
+    public override string Identifier => "android_arm64";
+
+    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain(true, new Arm64Architecture());
 }
