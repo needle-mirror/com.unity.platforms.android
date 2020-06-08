@@ -1,8 +1,8 @@
 ﻿using System.IO;
+using Bee.Core;
 using Unity.Build.Classic;
 using Unity.Build.Common;
 using Unity.Build.Editor;
-using Unity.BuildSystem.NativeProgramSupport;
 using UnityEditor;
 
 namespace Unity.Build.Android.Classic

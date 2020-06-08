@@ -1,8 +1,9 @@
 using System;
 using System.IO;
+using Bee.Core;
+using Unity.Build;
 using Unity.Build.Classic;
 using Unity.Build.Classic.Private;
-using Unity.BuildSystem.NativeProgramSupport;
 using UnityEditor;
 
 #if UNITY_ANDROID
@@ -42,7 +43,7 @@ namespace Unity.Build.Android.Classic
             if (Unsupported.IsSourceBuild())
             {
 #if UNITY_2019_3_OR_NEWER
-                Environment.SetEnvironmentVariable("BURST_ANDROID_MIN_API_LEVEL", $"{19}");
+                Environment.SetEnvironmentVariable("BURST_ANDROID_MIN_API_LEVEL", $"{21}");
 #endif
             }
         }

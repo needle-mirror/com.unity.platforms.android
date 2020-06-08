@@ -17,7 +17,8 @@ namespace Unity.Build.Android.Classic
         {
             typeof(ApplicationIdentifier),
             typeof(AndroidAPILevels),
-            typeof(AndroidAspectRatio)
+            typeof(AndroidAspectRatio),
+            typeof(AndroidInstallLocation)
         };
 
         AndroidManifest m_LauncherManifest;
@@ -49,7 +50,10 @@ namespace Unity.Build.Android.Classic
 
             // In old pipeline, the build id always changes when you click build, we cannot do the same here, since build would constantly be rebuilding
             // Use BuildConfiguration GUID instead
-            m_LibraryManifest.SetBuildId(new Guid(context.BuildConfigurationAssetGUID).ToString());
+            var path = context.BuildConfigurationAssetPath;
+            // TODO: when build config is not an asset, this creates new guid every time
+            var guid = !string.IsNullOrEmpty(path) ? new Guid(context.BuildConfigurationAssetGUID) : Guid.NewGuid();
+            m_LibraryManifest.SetBuildId(guid.ToString());
 
             var targetLauncherManifest = androidContext.LauncherSrcMainDirectory.Combine("AndroidManifest.xml");
             var targetLibraryManifest = androidContext.LibrarySrcMainDirectory.Combine("AndroidManifest.xml");
@@ -131,8 +135,8 @@ namespace Unity.Build.Android.Classic
         private void PatchLauncherManifest(AndroidManifest manifest, string packageName)
         {
             manifest.packageName = packageName;
-            var loc = PreferredInstallLocationAsString();
-            manifest.SetInstallLocation(loc);
+            var installLocation = m_Context.GetComponentOrDefault<AndroidInstallLocation>();
+            manifest.SetInstallLocation(installLocation.PreferredInstallLocationAsString());
             /*
              * TODO
             if (PlayerSettings.Android.androidTVCompatibility)
@@ -342,17 +346,6 @@ namespace Unity.Build.Android.Classic
                     Debug.LogWarning("SubTarget not recognized : " + subTarget);
                     break;
             }
-        }
-
-        private string PreferredInstallLocationAsString()
-        {
-            switch (PlayerSettings.Android.preferredInstallLocation)
-            {
-                case AndroidPreferredInstallLocation.Auto: return "auto";
-                case AndroidPreferredInstallLocation.PreferExternal: return "preferExternal";
-                case AndroidPreferredInstallLocation.ForceInternal: return "internalOnly";
-            }
-            return "preferExternal";
         }
 
         private string GetMaxAspectRatio(int targetSdkVersion)

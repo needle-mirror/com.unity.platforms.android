@@ -12,7 +12,8 @@ using UnityEditor;
 using UnityEngine;
 
 #if UNITY_ANDROID_SUPPORTS_SHADOWFILES
-using Unity.BuildTools;
+using Bee.BuildTools;
+using Bee.Tools;
 #endif
 
 namespace Unity.Build.Android.Classic
