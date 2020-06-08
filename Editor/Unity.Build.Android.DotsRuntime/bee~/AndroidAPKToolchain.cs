@@ -35,14 +35,79 @@ namespace Bee.Toolchain.Android
             public static GeneralSettings Settings { get; private set; }
             public static ApplicationIdentifier Identifier { get; private set; }
             public static AndroidBundleVersionCode VersionCode { get; private set; }
+            public static ScreenOrientations Orientations { get; private set; }
             public static AndroidAPILevels APILevels { get; private set; }
             public static AndroidArchitectures Architectures { get; private set; }
             public static AndroidExportSettings ExportSettings { get; private set; }
+            public static AndroidInstallLocation InstallLocation { get; private set; }
+
+            public static bool Validate()
+            {
+                // not android target or no required build components
+                if (Architectures == null || ExternalTools == null)
+                {
+                    return false;
+                }
+                if (ExportSettings.BuildSystem != AndroidBuildSystem.Gradle)
+                {
+                    Console.WriteLine($"{Config.ExportSettings.BuildSystem.ToString()} is not supported yet for Tiny");
+                    return false;
+                }
+                if ((Architectures.Architectures & AndroidArchitecture.ARMv7) == 0 && (Architectures.Architectures & AndroidArchitecture.ARM64) == 0)
+                {
+                    Console.WriteLine($"No valid architecture for Tiny android toolchain {Architectures.Architectures.ToString()}");
+                    return false;
+                }
+                if (Orientations == null ||
+                    (Orientations.DefaultOrientation == UIOrientation.AutoRotation &&
+                    !Orientations.AllowAutoRotateToPortrait &&
+                    !Orientations.AllowAutoRotateToReversePortrait &&
+                    !Orientations.AllowAutoRotateToLandscape &&
+                    !Orientations.AllowAutoRotateToReverseLandscape))
+                {
+                    Console.WriteLine("There are no allowed orientations for the application");
+                    return false;
+                }
+                if (String.IsNullOrEmpty(ExternalTools.NdkPath) || !(new NPath(ExternalTools.NdkPath)).DirectoryExists())
+                {
+                    Console.WriteLine($"Can't find Android NDK folder {ExternalTools.NdkPath}");
+                    return false;
+                }
+                if (String.IsNullOrEmpty(ExternalTools.SdkPath) || !(new NPath(ExternalTools.SdkPath)).DirectoryExists())
+                {
+                    Console.WriteLine($"Can't find Android SDK folder {ExternalTools.SdkPath}");
+                    return false;
+                }
+                if (String.IsNullOrEmpty(ExternalTools.JavaPath) || !(new NPath(ExternalTools.JavaPath)).DirectoryExists())
+                {
+                    Console.WriteLine($"Can't find Java SDK folder {ExternalTools.JavaPath}");
+                    return false;
+                }
+                if (String.IsNullOrEmpty(ExternalTools.GradlePath) || !(new NPath(Config.ExternalTools.GradlePath)).DirectoryExists())
+                {
+                    Console.WriteLine($"Can't find Gradle folder {ExternalTools.GradlePath}");
+                    return false;
+                }
+                return true;
+            }
         }
 
         public static bool IsFatApk => (Config.Architectures?.Architectures & AndroidArchitecture.ARMv7) != 0 && (Config.Architectures?.Architectures & AndroidArchitecture.ARM64) != 0;
         public static bool BuildAppBundle => Config.ExportSettings?.TargetType == AndroidTargetType.AndroidAppBundle;
         public static bool ExportProject => Config.ExportSettings?.ExportProject == true;
+
+        public static bool AllowedOrientationPortrait => Config.Orientations?.DefaultOrientation == UIOrientation.Portrait ||
+                                                         (Config.Orientations?.DefaultOrientation == UIOrientation.AutoRotation &&
+                                                          Config.Orientations?.AllowAutoRotateToPortrait == true);
+        public static bool AllowedOrientationReversePortrait => Config.Orientations?.DefaultOrientation == UIOrientation.PortraitUpsideDown ||
+                                                         (Config.Orientations?.DefaultOrientation == UIOrientation.AutoRotation &&
+                                                          Config.Orientations?.AllowAutoRotateToReversePortrait == true);
+        public static bool AllowedOrientationLandscape => Config.Orientations?.DefaultOrientation == UIOrientation.LandscapeRight ||
+                                                         (Config.Orientations?.DefaultOrientation == UIOrientation.AutoRotation &&
+                                                          Config.Orientations?.AllowAutoRotateToLandscape == true);
+        public static bool AllowedOrientationReverseLandscape => Config.Orientations?.DefaultOrientation == UIOrientation.LandscapeLeft ||
+                                                         (Config.Orientations?.DefaultOrientation == UIOrientation.AutoRotation &&
+                                                          Config.Orientations?.AllowAutoRotateToReverseLandscape == true);
 
         static AndroidApkToolchain()
         {
@@ -51,14 +116,9 @@ namespace Bee.Toolchain.Android
 
         public static AndroidApkToolchain GetToolChain(bool useStatic, bool mainTarget)
         {
-            // not android target or no required build components
-            if (Config.Architectures == null || Config.ExternalTools == null)
+            // wrong build configuration
+            if (!Config.Validate())
             {
-                return new AndroidApkToolchain(new AndroidNdkLocator(new ARMv7Architecture()).UserDefaultOrDummy, useStatic, mainTarget);
-            }
-            if (Config.ExportSettings.BuildSystem != AndroidBuildSystem.Gradle)
-            {
-                Console.WriteLine($"{Config.ExportSettings.BuildSystem.ToString()} is not supported yet for Tiny");
                 return new AndroidApkToolchain(new AndroidNdkLocator(new ARMv7Architecture()).UserDefaultOrDummy, useStatic, mainTarget);
             }
 
@@ -78,7 +138,6 @@ namespace Bee.Toolchain.Android
                 }
                 else // shouldn't happen
                 {
-                    Console.WriteLine($"No valid architecture for Tiny android toolchain {AndroidApkToolchain.Config.Architectures.Architectures.ToString()}");
                     return null;
                 }
             }
@@ -93,16 +152,7 @@ namespace Bee.Toolchain.Android
             }
             if (ToolChains[index] == null)
             {
-                var locator = new AndroidNdkLocator(architecture);
-                var ndkPath = new NPath(Config.ExternalTools.NdkPath);
-                var sdkPath = new NPath(Config.ExternalTools.SdkPath);
-                var javaPath = new NPath(Config.ExternalTools.JavaPath);
-                var gradlePath = new NPath(Config.ExternalTools.GradlePath);
-                var androidNdk = String.IsNullOrEmpty(Config.ExternalTools.NdkPath) || !ndkPath.DirectoryExists() ||
-                                 String.IsNullOrEmpty(Config.ExternalTools.SdkPath) || !sdkPath.DirectoryExists() ||
-                                 String.IsNullOrEmpty(Config.ExternalTools.JavaPath) || !javaPath.DirectoryExists() ||
-                                 String.IsNullOrEmpty(Config.ExternalTools.GradlePath) || !gradlePath.DirectoryExists() ?
-                    locator.UserDefaultOrDummy : locator.UseSpecific(ndkPath);
+                var androidNdk = (new AndroidNdkLocator(architecture)).UseSpecific(new NPath(Config.ExternalTools.NdkPath));
                 var toolchain = new AndroidApkToolchain(androidNdk, useStatic, mainTarget);
                 ToolChains[index] = toolchain;
             }
@@ -370,6 +420,34 @@ namespace Bee.Toolchain.Android
             // "density",   // this is added dynamically if target SDK level is higher than 23.
         });
 
+        private static string GetOrientationAttr()
+        {
+            string orientationAttr = null;
+
+            var autoPortrait = AndroidApkToolchain.AllowedOrientationPortrait || AndroidApkToolchain.AllowedOrientationReversePortrait;
+            var autoLandscape = AndroidApkToolchain.AllowedOrientationLandscape || AndroidApkToolchain.AllowedOrientationReverseLandscape;
+            UIOrientation? defaultOrientation = AndroidApkToolchain.Config.Orientations?.DefaultOrientation;
+
+            if (defaultOrientation == UIOrientation.Portrait)
+                orientationAttr = "portrait";
+            else if (defaultOrientation == UIOrientation.PortraitUpsideDown)
+                orientationAttr = "reversePortrait";
+            else if (defaultOrientation == UIOrientation.LandscapeLeft)
+                orientationAttr = "reverseLandscape";
+            else if (defaultOrientation == UIOrientation.LandscapeRight)
+                orientationAttr = "landscape";
+            else if (autoPortrait && autoLandscape)
+                orientationAttr = "fullSensor";
+            else if (autoPortrait)
+                orientationAttr = "sensorPortrait";
+            else if (autoLandscape)
+                orientationAttr = "sensorLandscape";
+            else
+                orientationAttr = "unspecified";
+
+            return orientationAttr;
+        }
+
         private NPath GenerateGradleProject(NPath gradleProjectPath)
         {
             var gradleSrcPath = AsmDefConfigFile.AsmDefDescriptionFor("Unity.Build.Android.DotsRuntime").Path.Parent.Combine("AndroidProjectTemplate~/");
@@ -450,6 +528,8 @@ namespace Bee.Toolchain.Android
                 { "**PRODUCTNAME**", AndroidApkToolchain.Config.Settings.ProductName },
                 { "**VERSIONNAME**", "1.0.0" /*AndroidApkToolchain.Config.Settings.Version*/ }, // property hasn't been implemented yet
                 { "**VERSIONCODE**", AndroidApkToolchain.Config.VersionCode.VersionCode.ToString() },
+                { "**ORIENTATION**", GetOrientationAttr() },
+                { "**INSTALLLOCATION**", AndroidApkToolchain.Config.InstallLocation?.PreferredInstallLocationAsString() },
                 { "**GAMENAME**", m_gameName },
                 { "**MINSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.MinAPILevel).ToString() },
                 { "**TARGETSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel).ToString()},
@@ -458,6 +538,10 @@ namespace Bee.Toolchain.Android
                 { "**DEPENDENCIES**", gradleDependencies.ToString() },
                 { "**KOTLINCLASSPATH**", kotlinClassPath },
                 { "**KOTLINPLUGIN**", kotlinPlugin },
+                { "**ALLOWED_PORTRAIT**", AndroidApkToolchain.AllowedOrientationPortrait ? "true" : "false" },
+                { "**ALLOWED_REVERSE_PORTRAIT**", AndroidApkToolchain.AllowedOrientationReversePortrait ? "true" : "false" },
+                { "**ALLOWED_LANDSCAPE**", AndroidApkToolchain.AllowedOrientationLandscape ? "true" : "false" },
+                { "**ALLOWED_REVERSE_LANDSCAPE**", AndroidApkToolchain.AllowedOrientationReverseLandscape ? "true" : "false" },
             };
 
             // copy and patch project files

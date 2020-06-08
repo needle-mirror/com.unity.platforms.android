@@ -53,6 +53,18 @@ get_javavm()
     return gJavaVm;
 }
 
+DOTS_EXPORT(jobject)
+GetAndroidActivity()
+{
+    return tinyActivity;
+}
+
+DOTS_EXPORT(JavaVM*)
+GetJavaVM()
+{
+    return gJavaVm;
+}
+
 DOTS_EXPORT(bool)
 init_android() {
     __android_log_print(ANDROID_LOG_INFO, "AndroidWrapper", "Android C Init\n");
@@ -227,14 +239,14 @@ get_sensor_stream_android(int type, int *len)
     return m_AndroidSensors.GetSensorData(type, len);
 }
 
-DOTS_EXPORT(void)
+DOTS_EXPORT(bool)
 set_orientation_android(int orientation)
 {
     JavaVMThreadScope javaVM;
     JNIEnv* env = javaVM.GetEnv();
     jclass clazz = env->FindClass("com/unity3d/tinyplayer/UnityTinyActivity");
-    jmethodID setOrientation = env->GetStaticMethodID(clazz, "changeOrientation", "(I)V");
-    env->CallStaticVoidMethod(clazz, setOrientation, orientation);
+    jmethodID setOrientation = env->GetStaticMethodID(clazz, "changeOrientation", "(I)Z");
+    return env->CallStaticBooleanMethod(clazz, setOrientation, orientation);
 }
 
 DOTS_EXPORT(int)

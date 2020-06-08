@@ -244,8 +244,10 @@ namespace Unity.Tiny.Android
             if (m_deviceOrientation != screenOrientation && (m_deviceOrientation & m_screenOrientationMask) != 0)
             {
                 // it is possible to set screen orientation based on current device orientation
-                AndroidNativeCalls.setOrientation((int)ConvertToAndroidOrientation(m_deviceOrientation));
-                m_screenOrientation = m_deviceOrientation;
+                if (AndroidNativeCalls.setOrientation((int)ConvertToAndroidOrientation(m_deviceOrientation)))
+                {
+                    m_screenOrientation = m_deviceOrientation;
+                }
             }
             else if ((screenOrientation & m_screenOrientationMask) == 0)
             {
@@ -287,8 +289,10 @@ namespace Unity.Tiny.Android
                 {
                     Assert.IsTrue(false, "Unexpected orientation mask {(int)m_screenOrientationMask}");
                 }
-                AndroidNativeCalls.setOrientation((int)ConvertToAndroidOrientation(newOrientation));
-                m_screenOrientation = newOrientation;
+                if (AndroidNativeCalls.setOrientation((int)ConvertToAndroidOrientation(newOrientation)))
+                {
+                    m_screenOrientation = newOrientation;
+                }
             }
         }
 

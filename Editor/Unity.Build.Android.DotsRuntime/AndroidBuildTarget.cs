@@ -23,10 +23,12 @@ namespace Unity.Build.Android.DotsRuntime
             typeof(GeneralSettings),
             typeof(ApplicationIdentifier),
             typeof(AndroidBundleVersionCode),
+            typeof(ScreenOrientations),
             typeof(AndroidAPILevels),
             typeof(AndroidArchitectures),
             typeof(AndroidExternalTools),
-            typeof(AndroidExportSettings)
+            typeof(AndroidExportSettings),
+            typeof(AndroidInstallLocation)
         };
 
         string PackageName { get; set; }

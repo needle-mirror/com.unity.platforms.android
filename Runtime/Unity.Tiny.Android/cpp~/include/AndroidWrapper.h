@@ -2,8 +2,11 @@
 #include <android/log.h>
 
 extern "C" {
-    jobject get_activity();
-    JavaVM* get_javavm();
+    jobject get_activity() __attribute__ ((deprecated));
+    JavaVM* get_javavm() __attribute__ ((deprecated));
+
+    jobject GetAndroidActivity();
+    JavaVM* GetJavaVM();
 }
 
 class JavaVMThreadScope
@@ -12,10 +15,10 @@ public:
     JavaVMThreadScope()
     {
         m_env = 0;
-        m_detached = get_javavm()->GetEnv((void**)&m_env, JNI_VERSION_1_2) == JNI_EDETACHED;
+        m_detached = GetJavaVM()->GetEnv((void**)&m_env, JNI_VERSION_1_2) == JNI_EDETACHED;
         if (m_detached)
         {
-            get_javavm()->AttachCurrentThread(&m_env, NULL);
+            GetJavaVM()->AttachCurrentThread(&m_env, NULL);
         }
         CheckException();
     }
@@ -25,7 +28,7 @@ public:
         CheckException();
         if (m_detached)
         {
-            get_javavm()->DetachCurrentThread();
+            GetJavaVM()->DetachCurrentThread();
         }
     }
 
