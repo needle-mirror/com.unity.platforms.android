@@ -28,19 +28,21 @@ namespace Bee.Toolchain.Android
         public override NativeProgramFormat DynamicLibraryFormat { get; }
         public override NativeProgramFormat ExecutableFormat { get; }
 
-        public List<NPath> RequiredArtifacts = new List<NPath>();
-
         // Build configuration
         internal class Config
         {
             public static AndroidExternalTools ExternalTools { get; private set; }
             public static GeneralSettings Settings { get; private set; }
             public static ApplicationIdentifier Identifier { get; private set; }
+            public static AndroidBundleVersionCode VersionCode { get; private set; }
             public static AndroidAPILevels APILevels { get; private set; }
             public static AndroidArchitectures Architectures { get; private set; }
+            public static AndroidExportSettings ExportSettings { get; private set; }
         }
 
-        public static bool IsFatApk => (Config.Architectures.Architectures & AndroidArchitecture.ARMv7) != 0 && (Config.Architectures.Architectures & AndroidArchitecture.ARM64) != 0;
+        public static bool IsFatApk => (Config.Architectures?.Architectures & AndroidArchitecture.ARMv7) != 0 && (Config.Architectures?.Architectures & AndroidArchitecture.ARM64) != 0;
+        public static bool BuildAppBundle => Config.ExportSettings?.TargetType == AndroidTargetType.AndroidAppBundle;
+        public static bool ExportProject => Config.ExportSettings?.ExportProject == true;
 
         static AndroidApkToolchain()
         {
@@ -52,7 +54,12 @@ namespace Bee.Toolchain.Android
             // not android target or no required build components
             if (Config.Architectures == null || Config.ExternalTools == null)
             {
-                return new AndroidApkToolchain( new AndroidNdkLocator(new ARMv7Architecture()).UserDefaultOrDummy, useStatic, mainTarget);
+                return new AndroidApkToolchain(new AndroidNdkLocator(new ARMv7Architecture()).UserDefaultOrDummy, useStatic, mainTarget);
+            }
+            if (Config.ExportSettings.BuildSystem != AndroidBuildSystem.Gradle)
+            {
+                Console.WriteLine($"{Config.ExportSettings.BuildSystem.ToString()} is not supported yet for Tiny");
+                return new AndroidApkToolchain(new AndroidNdkLocator(new ARMv7Architecture()).UserDefaultOrDummy, useStatic, mainTarget);
             }
 
             int index;
@@ -273,13 +280,19 @@ namespace Bee.Toolchain.Android
         }
     }
 
-    internal sealed class AndroidApkMainModule : DynamicLibrary
+    internal sealed class AndroidApkMainModule : DynamicLibrary, IPackagedAppExtension
     {
         private String m_libPath;
+        private String m_gameName;
 
         public AndroidApkMainModule(NPath path, AndroidApkToolchain toolchain, params PrecompiledLibrary[] dynamicLibraryDependencies) : base(path, dynamicLibraryDependencies)
         {
             m_libPath = toolchain.Architecture is Arm64Architecture ? "arm64-v8a" : "armeabi-v7a";
+        }
+
+        public void SetAppPackagingParameters(String gameName, DotsConfiguration config, IEnumerable<IDeployable> supportFiles)
+        {
+            m_gameName = gameName;
         }
 
         public override BuiltNativeProgram DeployTo(NPath targetDirectory, Dictionary<IDeployable, IDeployable> alreadyDeployed = null)
@@ -287,8 +300,10 @@ namespace Bee.Toolchain.Android
             // This is complementary target, library should be deployed to the corresponding folder of the main target
             // see comment in https://github.com/Unity-Technologies/dots/blob/master/TinySamples/Packages/com.unity.dots.runtime/bee%7E/BuildProgramSources/DotsConfigs.cs
             // DotsConfigs.MakeConfigs() method for details.
-            var gradleProjectPath = Path.Parent.Parent.Combine("gradle");
+            var gradleProjectPath = AndroidApkToolchain.ExportProject ? targetDirectory.Combine(m_gameName) : Path.Parent.Parent.Combine("gradle");
             var libDirectory = gradleProjectPath.Combine("src/main/jniLibs").Combine(m_libPath);
+            // Deployables with type DeployableFile are deployed with main target
+            Deployables = Deployables.Where(f => !(f is DeployableFile)).ToArray();
             var result = base.DeployTo(libDirectory, alreadyDeployed);
             // Required to make sure that main target Gradle project depends on this lib and this lib is deployed before packaging step
             Backend.Current.AddDependency(gradleProjectPath.Combine("build.gradle"), result.Path);
@@ -298,7 +313,7 @@ namespace Bee.Toolchain.Android
 
     internal sealed class AndroidApkFormat : NativeProgramFormat
     {
-        public override string Extension { get; } = "apk";
+        public override string Extension { get; } = AndroidApkToolchain.ExportProject ? "" : (AndroidApkToolchain.BuildAppBundle ? "aab" : "apk");
 
         internal AndroidApkFormat(AndroidNdkToolchain toolchain) : base(
             new AndroidApkLinker(toolchain).AsDynamicLibrary().WithStaticCppRuntime(toolchain.Sdk.Version.Major >= 19))
@@ -322,18 +337,18 @@ namespace Bee.Toolchain.Android
         private AndroidApkToolchain m_apkToolchain;
         private String m_gameName;
         private DotsConfiguration m_config;
-        private IEnumerable<IDeployable> m_supportFiles;
+        private List<NPath> m_projectFiles = new List<NPath>();
 
         public AndroidApk(NPath path, AndroidApkToolchain toolchain, params PrecompiledLibrary[] dynamicLibraryDependencies) : base(path, dynamicLibraryDependencies)
         {
             m_apkToolchain = toolchain;
         }
 
+        //TODO get rid of supportFiles parameter, all required files are in Deployables array
         public void SetAppPackagingParameters(String gameName, DotsConfiguration config, IEnumerable<IDeployable> supportFiles)
         {
             m_gameName = gameName;
             m_config = config;
-            m_supportFiles = supportFiles;
         }
 
         static readonly string AndroidConfigChanges = string.Join("|", new[]
@@ -355,43 +370,9 @@ namespace Bee.Toolchain.Android
             // "density",   // this is added dynamically if target SDK level is higher than 23.
         });
 
-        private NPath PackageApp(NPath buildPath, NPath mainLibPath)
+        private NPath GenerateGradleProject(NPath gradleProjectPath)
         {
-            var deployedPath = buildPath.Combine(m_gameName + ".apk");
-            if (m_apkToolchain == null)
-            {
-                Console.WriteLine($"Error: not Android APK toolchain");
-                return deployedPath;
-            }
-
-            var gradleProjectPath = mainLibPath.Parent.Parent.Parent.Parent.Parent;
-            var pathToRoot = new NPath(string.Concat(Enumerable.Repeat("../", gradleProjectPath.Depth)));
-            var apkSrcPath = AsmDefConfigFile.AsmDefDescriptionFor("Unity.Build.Android.DotsRuntime").Path.Parent.Combine("AndroidProjectTemplate~/");
-
-            var javaLaunchPath = new NPath(AndroidApkToolchain.Config.ExternalTools.JavaPath).Combine("bin").Combine("java");
-            var gradleLaunchPath = AndroidApkToolchain.GetGradleLaunchJarPath();
-            var releaseApk = m_config == DotsConfiguration.Release;
-            var gradleCommand = releaseApk ? "assembleRelease" : "assembleDebug";
-            var gradleExecutableString = $"cd {gradleProjectPath.InQuotes()} && {javaLaunchPath.InQuotes()} -classpath {gradleLaunchPath.InQuotes()} org.gradle.launcher.GradleMain {gradleCommand} && cd {pathToRoot.InQuotes()}";
-
-            var apkPath = gradleProjectPath.Combine("build/outputs/apk").Combine(releaseApk ? "release/gradle-release.apk" : "debug/gradle-debug.apk");
-
-            Backend.Current.AddAction(
-                actionName: "Build Gradle project",
-                targetFiles: new[] { apkPath },
-                inputs: m_apkToolchain.RequiredArtifacts.Append(mainLibPath).Concat(m_supportFiles.Select(d => d.Path)).ToArray(),
-                executableStringFor: gradleExecutableString,
-                commandLineArguments: Array.Empty<string>(),
-                allowUnexpectedOutput: false,
-                allowedOutputSubstrings: new[] { ":*", "BUILD SUCCESSFUL in *" }
-            );
-
-            var localProperties = new StringBuilder();
-            localProperties.AppendLine($"sdk.dir={AndroidApkToolchain.Config.ExternalTools.SdkPath}");
-            localProperties.AppendLine($"ndk.dir={AndroidApkToolchain.Config.ExternalTools.NdkPath}");
-            var localPropertiesPath = gradleProjectPath.Combine("local.properties");
-            Backend.Current.AddWriteTextAction(localPropertiesPath, localProperties.ToString());
-            Backend.Current.AddDependency(apkPath, localPropertiesPath);
+            var gradleSrcPath = AsmDefConfigFile.AsmDefDescriptionFor("Unity.Build.Android.DotsRuntime").Path.Parent.Combine("AndroidProjectTemplate~/");
 
             var hasGradleDependencies = false;
             var gradleDependencies = new StringBuilder();
@@ -467,6 +448,8 @@ namespace Bee.Toolchain.Android
                 { "**LOADLIBRARIES**", loadLibraries.ToString() },
                 { "**PACKAGENAME**", AndroidApkToolchain.Config.Identifier.PackageName },
                 { "**PRODUCTNAME**", AndroidApkToolchain.Config.Settings.ProductName },
+                { "**VERSIONNAME**", "1.0.0" /*AndroidApkToolchain.Config.Settings.Version*/ }, // property hasn't been implemented yet
+                { "**VERSIONCODE**", AndroidApkToolchain.Config.VersionCode.VersionCode.ToString() },
                 { "**GAMENAME**", m_gameName },
                 { "**MINSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.MinAPILevel).ToString() },
                 { "**TARGETSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel).ToString()},
@@ -478,9 +461,10 @@ namespace Bee.Toolchain.Android
             };
 
             // copy and patch project files
-            foreach (var r in apkSrcPath.Files(true))
+            NPath buildGradlePath = null;
+            foreach (var r in gradleSrcPath.Files(true))
             {
-                var destPath = gradleProjectPath.Combine(r.RelativeTo(apkSrcPath));
+                var destPath = gradleProjectPath.Combine(r.RelativeTo(gradleSrcPath));
                 if (r.Extension == "template")
                 {
                     destPath = destPath.ChangeExtension("");
@@ -498,15 +482,97 @@ namespace Bee.Toolchain.Android
                 {
                     destPath = CopyTool.Instance().Setup(destPath, r);
                 }
-                Backend.Current.AddDependency(apkPath, destPath);
+                if (destPath.FileName == "build.gradle")
+                {
+                    buildGradlePath = destPath;
+                }
+                else
+                {
+                    m_projectFiles.Add(destPath);
+                }
             }
 
-            return CopyTool.Instance().Setup(deployedPath, apkPath);
+            var localProperties = new StringBuilder();
+            localProperties.AppendLine($"sdk.dir={AndroidApkToolchain.Config.ExternalTools.SdkPath}");
+            localProperties.AppendLine($"ndk.dir={AndroidApkToolchain.Config.ExternalTools.NdkPath}");
+            var localPropertiesPath = gradleProjectPath.Combine("local.properties");
+            Backend.Current.AddWriteTextAction(localPropertiesPath, localProperties.ToString());
+            m_projectFiles.Add(localPropertiesPath);
+            Backend.Current.AddDependency(buildGradlePath, m_projectFiles);
+
+            return buildGradlePath;
+        }
+
+        private NPath PackageApp(NPath buildPath, NPath mainLibPath)
+        {
+            if (m_apkToolchain == null)
+            {
+                Console.WriteLine($"Error: not Android APK toolchain");
+                return buildPath;
+            }
+            if (AndroidApkToolchain.ExportProject)
+            {
+                var deployedPath = buildPath.Combine(m_gameName);
+                var buildGradlePath = GenerateGradleProject(deployedPath);
+                m_projectFiles.Add(buildGradlePath);
+                m_projectFiles.Add(mainLibPath);
+
+                // stub action to have deployedPath in build tree and set correct dependencies
+                Backend.Current.AddAction(
+                    actionName: "Gradle project folder",
+                    targetFiles: new[] { deployedPath },
+                    inputs: m_projectFiles.ToArray(),
+                    executableStringFor: $"echo created",
+                    commandLineArguments: Array.Empty<string>(),
+                    allowUnexpectedOutput: true,
+                    allowUnwrittenOutputFiles: true
+                );
+                return deployedPath;
+            }
+            else
+            {
+                var deployedPath = buildPath.Combine(m_gameName + "." + m_apkToolchain.ExecutableFormat.Extension);
+                var gradleProjectPath = mainLibPath.Parent.Parent.Parent.Parent.Parent;
+                var buildGradlePath = GenerateGradleProject(gradleProjectPath);
+                var pathToRoot = new NPath(string.Concat(Enumerable.Repeat("../", gradleProjectPath.Depth)));
+
+                var javaLaunchPath = new NPath(AndroidApkToolchain.Config.ExternalTools.JavaPath).Combine("bin").Combine("java");
+                var gradleLaunchPath = AndroidApkToolchain.GetGradleLaunchJarPath();
+                var releaseBuild = m_config == DotsConfiguration.Release;
+                var gradleCommand = AndroidApkToolchain.BuildAppBundle ?
+                                   (releaseBuild ? "bundleRelease" : "bundleDebug") :
+                                   (releaseBuild ? "assembleRelease" : "assembleDebug");
+                var gradleExecutableString = $"cd {gradleProjectPath.InQuotes()} && {javaLaunchPath.InQuotes()} -classpath {gradleLaunchPath.InQuotes()} org.gradle.launcher.GradleMain {gradleCommand} && cd {pathToRoot.InQuotes()}";
+
+                NPath gradleBuildPath;
+                if (AndroidApkToolchain.BuildAppBundle)
+                {
+                    gradleBuildPath = gradleProjectPath.Combine("build/outputs/bundle").Combine(releaseBuild ? "release/gradle.aab" : "debug/gradle.aab");
+                }
+                else
+                {
+                    gradleBuildPath = gradleProjectPath.Combine("build/outputs/apk").Combine(releaseBuild ? "release/gradle-release.apk" : "debug/gradle-debug.apk");
+                }
+                m_projectFiles.Add(buildGradlePath);
+                m_projectFiles.Add(mainLibPath);
+
+                Backend.Current.AddAction(
+                    actionName: "Build Gradle project",
+                    targetFiles: new[] { gradleBuildPath },
+                    inputs: m_projectFiles.ToArray(),
+                    executableStringFor: gradleExecutableString,
+                    commandLineArguments: Array.Empty<string>(),
+                    allowUnexpectedOutput: false,
+                    allowedOutputSubstrings: new[] { ":*", "BUILD SUCCESSFUL in *" }
+                );
+
+                return CopyTool.Instance().Setup(deployedPath, gradleBuildPath);
+            }
         }
 
         public override BuiltNativeProgram DeployTo(NPath targetDirectory, Dictionary<IDeployable, IDeployable> alreadyDeployed = null)
         {
-            var gradleProjectPath = Path.Parent.Combine("gradle");
+            var gradleProjectPath = AndroidApkToolchain.ExportProject ? targetDirectory.Combine(m_gameName) : Path.Parent.Combine("gradle");
             var libDirectory = gradleProjectPath.Combine("src/main/jniLibs");
             libDirectory = libDirectory.Combine(m_apkToolchain.Architecture is Arm64Architecture ? "arm64-v8a" : "armeabi-v7a");
 

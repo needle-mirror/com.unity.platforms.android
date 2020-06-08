@@ -41,6 +41,20 @@ namespace Unity.Build.Android
             }
         }
 
+        private static string JavaName
+        {
+            get
+            {
+#if UNITY_EDITOR_WIN
+                return "java.exe";
+#elif UNITY_EDITOR_OSX
+                return "java";
+#else
+                return "java";
+#endif
+            }
+        }
+
         public static string SdkRootPath => GetProperty("sdkRootPath");
         public static string NdkRootPath => GetProperty("ndkRootPath");
         public static string JdkRootPath => GetProperty("jdkRootPath");
@@ -55,6 +69,18 @@ namespace Unity.Build.Android
                     throw new Exception("ADB is not found");
                 }
                 return Path.Combine(SdkRootPath, "platform-tools", AdbName);
+            }
+        }
+
+        public static string JavaPath
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(JdkRootPath))
+                {
+                    throw new Exception("JDK is not found");
+                }
+                return Path.Combine(JdkRootPath, "bin", JavaName);
             }
         }
     }
