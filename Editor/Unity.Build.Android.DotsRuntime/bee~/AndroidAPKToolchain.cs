@@ -12,24 +12,17 @@ using Bee.Toolchain.LLVM;
 using Bee.Toolchain.Extension;
 using Bee.BuildTools;
 using Bee.NativeProgramSupport;
-using Newtonsoft.Json.Linq;
 using NiceIO;
 using Unity.BuildSystem.NativeProgramSupport;
+using Unity.Build.Common;
+using Unity.Build.DotsRuntime;
+using Unity.Build.Android;
 
 namespace Bee.Toolchain.Android
 {
     internal class AndroidApkToolchain : AndroidNdkToolchain
     {
-        public enum TargetType
-        {
-            Single,
-            Main,
-            Complementary
-        }
-
-        private static Dictionary<Tuple<Architecture, TargetType>, AndroidApkToolchain> ToolChains = new Dictionary<Tuple<Architecture, TargetType>, AndroidApkToolchain>();
-
-        public TargetType Type { get; private set; }
+        private static AndroidApkToolchain[] ToolChains = new AndroidApkToolchain[3];
 
         public override CLikeCompiler CppCompiler { get; }
         public override NativeProgramFormat DynamicLibraryFormat { get; }
@@ -38,73 +31,90 @@ namespace Bee.Toolchain.Android
         public List<NPath> RequiredArtifacts = new List<NPath>();
 
         // Build configuration
-        public static NPath SdkPath { get; private set; }
-        public static NPath NdkPath { get; private set; }
-        public static NPath JavaPath { get; private set; }
-        public static NPath GradlePath { get; private set; }
-        public static int MinAPILevel { get; private set; }
-        public static int TargetAPILevel { get; private set; }
+        internal class Config
+        {
+            public static AndroidExternalTools ExternalTools { get; private set; }
+            public static GeneralSettings Settings { get; private set; }
+            public static ApplicationIdentifier Identifier { get; private set; }
+            public static AndroidAPILevels APILevels { get; private set; }
+            public static AndroidArchitectures Architectures { get; private set; }
+        }
+
+        public static bool IsFatApk => (Config.Architectures.Architectures & AndroidArchitecture.ARMv7) != 0 && (Config.Architectures.Architectures & AndroidArchitecture.ARM64) != 0;
 
         static AndroidApkToolchain()
         {
-            // reading configuration
-            var file = NPath.CurrentDirectory.Combine("buildconfiguration.json");
+            BuildConfigurationReader.Read(NPath.CurrentDirectory.Combine("buildconfiguration.json"), typeof(AndroidApkToolchain.Config));
+        }
 
-            if (file.FileExists())
+        public static AndroidApkToolchain GetToolChain(bool useStatic, bool mainTarget)
+        {
+            // not android target or no required build components
+            if (Config.Architectures == null || Config.ExternalTools == null)
             {
-                var json = file.ReadAllText();
-                var jarray = JArray.Parse(json);
-                foreach (var jobject in jarray)
+                return new AndroidApkToolchain( new AndroidNdkLocator(new ARMv7Architecture()).UserDefaultOrDummy, useStatic, mainTarget);
+            }
+
+            int index;
+            Architecture architecture;
+            if (mainTarget)
+            {
+                if ((Config.Architectures.Architectures & AndroidArchitecture.ARMv7) != 0)
                 {
-                    var type = jobject["$type"].Value<string>();
-                    switch (type)
-                    {
-                        case "Unity.Build.Android.AndroidExternalTools, Unity.Build.Android":
-                            JavaPath = new NPath(jobject["JavaPath"].Value<string>());
-                            SdkPath = new NPath(jobject["SdkPath"].Value<string>());
-                            NdkPath = new NPath(jobject["NdkPath"].Value<string>());
-                            GradlePath = new NPath(jobject["GradlePath"].Value<string>());
-                            break;
-                        case "Unity.Build.Android.AndroidAPILevels, Unity.Build.Android":
-                            MinAPILevel = jobject["MinAPILevel"].Value<int>();
-                            TargetAPILevel = jobject["TargetAPILevel"].Value<int>();
-                            break;
-                    }
+                    architecture = new ARMv7Architecture();
+                    index = 0;
+                }
+                else if ((Config.Architectures.Architectures & AndroidArchitecture.ARM64) != 0)
+                {
+                    architecture = new Arm64Architecture();
+                    index = 1;
+                }
+                else // shouldn't happen
+                {
+                    Console.WriteLine($"No valid architecture for Tiny android toolchain {AndroidApkToolchain.Config.Architectures.Architectures.ToString()}");
+                    return null;
                 }
             }
-        }
-
-        public static AndroidApkToolchain GetToolChain(bool useStatic, Architecture architecture, TargetType type)
-        {
-            var key = new Tuple<Architecture, TargetType>(architecture, type);
-            if (!ToolChains.ContainsKey(key))
+            else if (IsFatApk) // complementary target for fat apk
+            {
+                architecture = new Arm64Architecture();
+                index = 2;
+            }
+            else // complementary target for single-architecture apk
+            {
+                return null;
+            }
+            if (ToolChains[index] == null)
             {
                 var locator = new AndroidNdkLocator(architecture);
-                var androidNdk = NdkPath == null || !NdkPath.DirectoryExists() ||
-                                 SdkPath == null || !SdkPath.DirectoryExists() ||
-                                 JavaPath == null || !JavaPath.DirectoryExists() ||
-                                 GradlePath == null || !GradlePath.DirectoryExists() ?
-                    locator.UserDefaultOrDummy : locator.UseSpecific(NdkPath);
-                var toolchain = new AndroidApkToolchain(androidNdk, useStatic, type);
-                ToolChains.Add(key, toolchain);
+                var ndkPath = new NPath(Config.ExternalTools.NdkPath);
+                var sdkPath = new NPath(Config.ExternalTools.SdkPath);
+                var javaPath = new NPath(Config.ExternalTools.JavaPath);
+                var gradlePath = new NPath(Config.ExternalTools.GradlePath);
+                var androidNdk = String.IsNullOrEmpty(Config.ExternalTools.NdkPath) || !ndkPath.DirectoryExists() ||
+                                 String.IsNullOrEmpty(Config.ExternalTools.SdkPath) || !sdkPath.DirectoryExists() ||
+                                 String.IsNullOrEmpty(Config.ExternalTools.JavaPath) || !javaPath.DirectoryExists() ||
+                                 String.IsNullOrEmpty(Config.ExternalTools.GradlePath) || !gradlePath.DirectoryExists() ?
+                    locator.UserDefaultOrDummy : locator.UseSpecific(ndkPath);
+                var toolchain = new AndroidApkToolchain(androidNdk, useStatic, mainTarget);
+                ToolChains[index] = toolchain;
             }
-            return ToolChains[key];
+            return ToolChains[index];
         }
 
-        public AndroidApkToolchain(AndroidNdk ndk, bool useStatic, TargetType type) : base(ndk)
+        public AndroidApkToolchain(AndroidNdk ndk, bool useStatic, bool mainTarget) : base(ndk)
         {
-            Type = type;
             DynamicLibraryFormat = useStatic ? new AndroidApkStaticLibraryFormat(this) as NativeProgramFormat :
                                                new AndroidApkDynamicLibraryFormat(this) as NativeProgramFormat;
-            ExecutableFormat = (type == TargetType.Complementary) ?
-                                new AndroidApkMainModuleFormat(this) as NativeProgramFormat :
-                                new AndroidApkFormat(this) as NativeProgramFormat;
+            ExecutableFormat = mainTarget ?
+                               new AndroidApkFormat(this) as NativeProgramFormat :
+                               new AndroidApkMainModuleFormat(this) as NativeProgramFormat;
             CppCompiler = new AndroidNdkCompilerNoThumb(ActionName, Architecture, Platform, Sdk, ndk.ApiLevel, useStatic);
         }
 
         public static NPath GetGradleLaunchJarPath()
         {
-            var launcherFiles = GradlePath.Combine("lib").Files("gradle-launcher-*.jar");
+            var launcherFiles = new NPath(Config.ExternalTools.GradlePath).Combine("lib").Files("gradle-launcher-*.jar");
             if (launcherFiles.Length == 1)
                 return launcherFiles[0];
             return null;
@@ -326,6 +336,25 @@ namespace Bee.Toolchain.Android
             m_supportFiles = supportFiles;
         }
 
+        static readonly string AndroidConfigChanges = string.Join("|", new[]
+        {
+            "mcc",
+            "mnc",
+            "locale",
+            "touchscreen",
+            "keyboard",
+            "keyboardHidden",
+            "navigation",
+            "orientation",
+            "screenLayout",
+            "uiMode",
+            "screenSize",
+            "smallestScreenSize",
+            "fontScale",
+            "layoutDirection",
+            // "density",   // this is added dynamically if target SDK level is higher than 23.
+        });
+
         private NPath PackageApp(NPath buildPath, NPath mainLibPath)
         {
             var deployedPath = buildPath.Combine(m_gameName + ".apk");
@@ -339,7 +368,7 @@ namespace Bee.Toolchain.Android
             var pathToRoot = new NPath(string.Concat(Enumerable.Repeat("../", gradleProjectPath.Depth)));
             var apkSrcPath = AsmDefConfigFile.AsmDefDescriptionFor("Unity.Build.Android.DotsRuntime").Path.Parent.Combine("AndroidProjectTemplate~/");
 
-            var javaLaunchPath = AndroidApkToolchain.JavaPath.Combine("bin").Combine("java");
+            var javaLaunchPath = new NPath(AndroidApkToolchain.Config.ExternalTools.JavaPath).Combine("bin").Combine("java");
             var gradleLaunchPath = AndroidApkToolchain.GetGradleLaunchJarPath();
             var releaseApk = m_config == DotsConfiguration.Release;
             var gradleCommand = releaseApk ? "assembleRelease" : "assembleDebug";
@@ -358,8 +387,8 @@ namespace Bee.Toolchain.Android
             );
 
             var localProperties = new StringBuilder();
-            localProperties.AppendLine($"sdk.dir={AndroidApkToolchain.SdkPath}");
-            localProperties.AppendLine($"ndk.dir={AndroidApkToolchain.NdkPath}");
+            localProperties.AppendLine($"sdk.dir={AndroidApkToolchain.Config.ExternalTools.SdkPath}");
+            localProperties.AppendLine($"ndk.dir={AndroidApkToolchain.Config.ExternalTools.NdkPath}");
             var localPropertiesPath = gradleProjectPath.Combine("local.properties");
             Backend.Current.AddWriteTextAction(localPropertiesPath, localProperties.ToString());
             Backend.Current.AddDependency(apkPath, localPropertiesPath);
@@ -413,28 +442,35 @@ namespace Bee.Toolchain.Android
             }
 
             String abiFilters = "";
-            if (m_apkToolchain.Type == AndroidApkToolchain.TargetType.Single && m_apkToolchain.Architecture is Arm64Architecture)
+            if (AndroidApkToolchain.Config.Architectures.Architectures == AndroidArchitecture.ARM64)
             {
                 abiFilters = "'arm64-v8a'";
             }
-            else if (m_apkToolchain.Type == AndroidApkToolchain.TargetType.Single && m_apkToolchain.Architecture is ARMv7Architecture)
+            else if (AndroidApkToolchain.Config.Architectures.Architectures == AndroidArchitecture.ARMv7)
             {
                 abiFilters = "'armeabi-v7a'";
             }
-            else if (m_apkToolchain.Type == AndroidApkToolchain.TargetType.Main && m_apkToolchain.Architecture is ARMv7Architecture)
+            else if (AndroidApkToolchain.IsFatApk)
             {
                 abiFilters = "'armeabi-v7a', 'arm64-v8a'";
             }
             else // shouldn't happen
             {
-                Console.WriteLine($"Main android toolchain with {m_apkToolchain.Architecture.ToString()}");
+                Console.WriteLine($"Tiny android toolchain doesn't support {AndroidApkToolchain.Config.Architectures.Architectures.ToString()} architectures");
             }
+
+            // Android docs say "density" value was added in API level 17, but it doesn't compile with target SDK level lower than 24.
+            string configChanges = ((int)AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel > 23) ? AndroidConfigChanges + "|density" : AndroidConfigChanges;
 
             var templateStrings = new Dictionary<string, string>
             {
                 { "**LOADLIBRARIES**", loadLibraries.ToString() },
-                { "**TINYNAME**", m_gameName.Replace("-","").ToLower() },
+                { "**PACKAGENAME**", AndroidApkToolchain.Config.Identifier.PackageName },
+                { "**PRODUCTNAME**", AndroidApkToolchain.Config.Settings.ProductName },
                 { "**GAMENAME**", m_gameName },
+                { "**MINSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.MinAPILevel).ToString() },
+                { "**TARGETSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel).ToString()},
+                { "**CONFIGCHANGES**", configChanges },
                 { "**ABIFILTERS**", abiFilters },
                 { "**DEPENDENCIES**", gradleDependencies.ToString() },
                 { "**KOTLINCLASSPATH**", kotlinClassPath },

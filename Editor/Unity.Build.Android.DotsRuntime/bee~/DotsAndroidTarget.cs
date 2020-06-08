@@ -9,42 +9,35 @@ abstract class DotsAndroidTarget : DotsBuildSystemTarget
     public override bool CanUseBurst { get; } = true;
 }
 
-class DotsAndroidTargetArmv7 : DotsAndroidTarget
+class DotsAndroidTargetMain : DotsAndroidTarget
 {
     public override string Identifier => "android_armv7";
 
-    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain(k_UseStatic, new ARMv7Architecture(), AndroidApkToolchain.TargetType.Single);
+    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain(k_UseStatic, true);
+
+    public override DotsBuildSystemTarget ComplementaryTarget
+    {
+        get
+        {
+            var target = DotsAndroidTargetComplementary.GetInstance();
+            return target.ToolChain != null ? target : null;
+        }
+    }
 }
 
-class DotsAndroidTargetArm64 : DotsAndroidTarget
+internal class DotsAndroidTargetComplementary : DotsAndroidTarget
 {
-    public override string Identifier => "android_arm64";
+    public override string Identifier => "android_complementary";
 
-    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain(k_UseStatic, new Arm64Architecture(), AndroidApkToolchain.TargetType.Single);
-}
+    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain(k_UseStatic, false);
 
-class DotsAndroidTargetFat : DotsAndroidTarget
-{
-    public override string Identifier => "android_fat";
-
-    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain(k_UseStatic, new ARMv7Architecture(), AndroidApkToolchain.TargetType.Main);
-
-    public override DotsBuildSystemTarget ComplementaryTarget => DotsAndroidTargetArm64Support.GetInstance();
-}
-
-internal class DotsAndroidTargetArm64Support : DotsAndroidTarget
-{
-    public override string Identifier => "android_complementary_arm64";
-
-    public override ToolChain ToolChain => AndroidApkToolchain.GetToolChain(k_UseStatic, new Arm64Architecture(), AndroidApkToolchain.TargetType.Complementary);
-
-    public static DotsAndroidTargetArm64Support GetInstance()
+    public static DotsAndroidTargetComplementary GetInstance()
     {
         if (m_Instance == null)
         {
-            m_Instance = new DotsAndroidTargetArm64Support();
+            m_Instance = new DotsAndroidTargetComplementary();
         }
         return m_Instance;
     }
-    private static DotsAndroidTargetArm64Support m_Instance = null;
+    private static DotsAndroidTargetComplementary m_Instance = null;
 }

@@ -24,7 +24,7 @@ apply plugin: 'com.android.application'
 **KOTLINPLUGIN**
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion **TARGETSDKVERSION**
     buildToolsVersion '28.0.3'
 
     compileOptions {
@@ -33,9 +33,9 @@ android {
     }
 
     defaultConfig {
-        minSdkVersion 16
-        targetSdkVersion 28
-        applicationId 'com.unity3d.**TINYNAME**'
+        minSdkVersion **MINSDKVERSION**
+        targetSdkVersion **TARGETSDKVERSION**
+        applicationId '**PACKAGENAME**'
         ndk {
             abiFilters **ABIFILTERS**
         }

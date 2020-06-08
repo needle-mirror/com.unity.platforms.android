@@ -41,9 +41,9 @@ namespace Unity.Build.Android.Classic
             if (scriptingSettings.ScriptingBackend == ScriptingImplementation.Mono2x)
                 architectures &= ~AndroidArchitecture.ARM64;
 
-            PlayerSettings.Android.targetArchitectures = architectures;
-            PlayerSettings.Android.minSdkVersion = apiLevels.MinAPILevel;
-            PlayerSettings.Android.targetSdkVersion = apiLevels.TargetAPILevel;
+            PlayerSettings.Android.targetArchitectures = (UnityEditor.AndroidArchitecture)architectures;
+            PlayerSettings.Android.minSdkVersion = (UnityEditor.AndroidSdkVersions)apiLevels.MinAPILevel;
+            PlayerSettings.Android.targetSdkVersion = (UnityEditor.AndroidSdkVersions)apiLevels.TargetAPILevel;
 
             var applicationIdentifier = context.GetComponentOrDefault<ApplicationIdentifier>();
             PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, applicationIdentifier.PackageName);

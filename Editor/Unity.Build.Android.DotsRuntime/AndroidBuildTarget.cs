@@ -1,30 +1,16 @@
 using System;
 using System.IO;
+using Unity.Build.Common;
 using Unity.Build.DotsRuntime;
+using Unity.Build.Android;
 using BuildTarget = Unity.Build.DotsRuntime.BuildTarget;
 
 namespace Unity.Build.Android.DotsRuntime
 {
-    public class AndroidBuildTarget32 : AndroidBuildTarget
+    public class AndroidBuildTarget : BuildTarget
     {
-        public override string DisplayName => "Android32";
+        public override string DisplayName => "Android";
         public override string BeeTargetName => "android_armv7";
-    }
-
-    public class AndroidBuildTarget64 : AndroidBuildTarget
-    {
-        public override string DisplayName => "Android64";
-        public override string BeeTargetName => "android_arm64";
-    }
-
-    public class AndroidBuildTargetFat : AndroidBuildTarget
-    {
-        public override string DisplayName => "AndroidFat";
-        public override string BeeTargetName => "android_fat";
-    }
-
-    public abstract class AndroidBuildTarget : BuildTarget
-    {
         public override bool CanBuild => true;
         public override string ExecutableExtension => ".apk";
         public override string UnityPlatformName => nameof(UnityEditor.BuildTarget.Android);
@@ -32,14 +18,14 @@ namespace Unity.Build.Android.DotsRuntime
 
         public override Type[] UsedComponents { get; } =
         {
+            typeof(GeneralSettings),
+            typeof(ApplicationIdentifier),
+            typeof(AndroidAPILevels),
+            typeof(AndroidArchitectures),
             typeof(AndroidExternalTools),
-            typeof(AndroidAPILevels)
         };
 
-        private string GetPackageName(string name)
-        {
-            return $"com.unity3d.{name}";
-        }
+        string PackageName { get; set; }
 
         private ShellProcessOutput InstallApp(string adbPath, string name, string apkName, string buildDir)
         {
@@ -48,17 +34,17 @@ namespace Unity.Build.Android.DotsRuntime
             {
                 ThrowOnError = false,
                 Executable = adbPath,
-                Arguments = new string[] { "shell", "pm", "list", "packages", GetPackageName(name) },
+                Arguments = new string[] { "shell", "pm", "list", "packages", PackageName },
                 WorkingDirectory = new DirectoryInfo(buildDir)
             });
-            if (result.FullOutput.Contains(GetPackageName(name)))
+            if (result.FullOutput.Contains(PackageName))
             {
                 // uninstall previous version, it may be signed with different key, so re-installing is not possible
                 result = Shell.Run(new ShellProcessArgs()
                 {
                     ThrowOnError = false,
                     Executable = adbPath,
-                    Arguments = new string[] { "uninstall", GetPackageName(name) },
+                    Arguments = new string[] { "uninstall", PackageName },
                     WorkingDirectory = new DirectoryInfo(buildDir)
                 });
             }
@@ -84,7 +70,7 @@ namespace Unity.Build.Android.DotsRuntime
                         "-c", "android.intent.category.LAUNCHER",
                         "-f", "0x10200000",
                         "-S",
-                        "-n", $"{GetPackageName(name)}/com.unity3d.tinyplayer.UnityTinyActivity"
+                        "-n", $"{PackageName}/com.unity3d.tinyplayer.UnityTinyActivity"
                 },
                 WorkingDirectory = new DirectoryInfo(buildDir)
             });
@@ -147,7 +133,7 @@ namespace Unity.Build.Android.DotsRuntime
                 Executable = adbPath,
                 Arguments = new string[] {
                         "shell", "am", "force-stop",
-                        GetPackageName(name)
+                        PackageName
                 },
                 WorkingDirectory = new DirectoryInfo(workingDirPath)
             });
@@ -167,6 +153,13 @@ namespace Unity.Build.Android.DotsRuntime
                 output.Succeeded = output.FullOutput.Contains("Test suite: SUCCESS");
             }
             return output;
+        }
+
+        public override void WriteBuildConfiguration(BuildContext context, string path)
+        {
+            base.WriteBuildConfiguration(context, path);
+            var appId = context.GetComponentOrDefault<ApplicationIdentifier>();
+            PackageName = appId.PackageName;
         }
     }
 }
