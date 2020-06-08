@@ -1,11 +1,11 @@
 ﻿using NUnit.Framework;
-using Unity.Platforms.Android;
+using Unity.Build.Android.DotsRuntime;
 
 class BasicTests
 {
-	[Test]
-	public void VerifyCanReferenceAndroidBuildTarget()
-	{
-		Assert.IsNotNull(typeof(AndroidBuildTarget));
-	}
+    [Test]
+    public void VerifyCanReferenceAndroidBuildTarget()
+    {
+        Assert.IsNotNull(typeof(AndroidBuildTarget));
+    }
 }
