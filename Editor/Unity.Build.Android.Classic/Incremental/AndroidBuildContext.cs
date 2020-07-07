@@ -2,9 +2,9 @@
 using NiceIO;
 using System.Collections.Generic;
 using System.IO;
+using Bee.Core;
 using Unity.Build;
 using Unity.Build.Classic.Private.IncrementalClassicPipeline;
-using Unity.BuildSystem.NativeProgramSupport;
 using UnityEditor;
 
 #if UNITY_ANDROID
@@ -24,7 +24,7 @@ namespace Unity.Build.Android.Classic
         public abstract string NDKToolchain { get; }
         public abstract string NDKArchitecture { get; }
         public abstract string NDKBinPrefix { get; }
-        public abstract AndroidArchitecture TargetArchitecture { get; }
+        public abstract UnityEditor.AndroidArchitecture TargetArchitecture { get; }
         public abstract int APILevel { get; }
         public abstract int VersionCodeBase { get; }
     }

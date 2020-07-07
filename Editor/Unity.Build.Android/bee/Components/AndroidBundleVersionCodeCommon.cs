@@ -14,7 +14,7 @@ namespace Unity.Build.Android
             set
             {
                 m_VersionCode = Math.Min(value, MaxVersionCode);
-            } 
+            }
             get
             {
                 return m_VersionCode;

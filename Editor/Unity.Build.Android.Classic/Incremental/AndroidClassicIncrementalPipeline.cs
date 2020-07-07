@@ -8,8 +8,6 @@ using Unity.Build;
 using Unity.Build.Classic;
 using Unity.Build.Classic.Private;
 using Unity.Build.Classic.Private.IncrementalClassicPipeline;
-using Unity.Build.Common;
-using Unity.BuildSystem.NativeProgramSupport;
 using UnityEditor;
 
 #if UNITY_ANDROID
@@ -63,7 +61,7 @@ namespace Unity.Build.Android.Classic
                 // External\Android\NonRedistributable\ndk\builds\platforms doesn't contain android-16, which is used as default in Burst
                 // This seems to be fixed in 2020.2
 #if UNITY_2020_1
-                burstSettings.EnvironmentVariables["BURST_ANDROID_MIN_API_LEVEL"] = "19";
+                burstSettings.EnvironmentVariables["BURST_ANDROID_MIN_API_LEVEL"] = "21";
 #endif
             }
 
@@ -123,6 +121,7 @@ namespace Unity.Build.Android.Classic
                             new ClassicBuildArchitectureData()
                             {
                                 DynamicLibraryDeployDirectory = $"{gradleLibrarySrcMain}/jniLibs/armeabi-v7a",
+                                IL2CPPLibraryDirectory = $"{gradleLibrarySrcMain}/jniLibs/armeabi-v7a",
                                 BurstTarget = "ARMV7A_NEON32",
                                 ToolChain = new AndroidNdkToolchain(AndroidNdk.LocatorArmv7.UseSpecific(ndkPath))
                             });
@@ -133,6 +132,7 @@ namespace Unity.Build.Android.Classic
                             new ClassicBuildArchitectureData()
                             {
                                 DynamicLibraryDeployDirectory = $"{gradleLibrarySrcMain}/jniLibs/arm64-v8a",
+                                IL2CPPLibraryDirectory = $"{gradleLibrarySrcMain}/jniLibs/arm64-v8a",
                                 BurstTarget = "ARMV8A_AARCH64",
                                 ToolChain = new AndroidNdkToolchain(AndroidNdk.LocatorArm64.UseSpecific(ndkPath))
                             });
@@ -204,7 +204,6 @@ namespace Unity.Build.Android.Classic
 #endif
         }
 
-
         protected override RunResult OnRun(RunContext context)
         {
 #if UNITY_ANDROID
@@ -219,11 +218,7 @@ namespace Unity.Build.Android.Classic
                 // TODO will be removed with pram async discovery
                 if (!runTargets.Any())
                 {
-                    runTargets = new Pram().Discover("android");
-
-                    // if any devices were found, only pick first
-                    if (runTargets.Any())
-                        runTargets = new[] { runTargets.First() };
+                    runTargets = new Pram().GetDefault("android");
                 }
 
                 if (!runTargets.Any())

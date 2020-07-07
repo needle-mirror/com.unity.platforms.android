@@ -1,8 +1,10 @@
+using Bee.Core;
 using System;
 using System.IO;
+using Unity.Build;
 using Unity.Build.Classic;
 using Unity.Build.Classic.Private;
-using Unity.BuildSystem.NativeProgramSupport;
+using Unity.Build.Common;
 using UnityEditor;
 
 #if UNITY_ANDROID
@@ -42,7 +44,7 @@ namespace Unity.Build.Android.Classic
             if (Unsupported.IsSourceBuild())
             {
 #if UNITY_2019_3_OR_NEWER
-                Environment.SetEnvironmentVariable("BURST_ANDROID_MIN_API_LEVEL", $"{19}");
+                Environment.SetEnvironmentVariable("BURST_ANDROID_MIN_API_LEVEL", $"{21}");
 #endif
             }
         }
@@ -130,7 +132,7 @@ namespace Unity.Build.Android.Classic
             if (config.HasComponent<InstallInBuildFolder>())
             {
                 var path = UnityEditor.BuildPipeline.GetPlaybackEngineDirectory(BuildTarget.Android, BuildOptions.None);
-                path = Path.Combine(path, "SourceBuild", config.GetComponentOrDefault<Unity.Build.Common.GeneralSettings>().ProductName);
+                path = Path.Combine(path, "SourceBuild", config.GetComponentOrDefault<GeneralSettings>().ProductName);
                 return new DirectoryInfo(path);
             }
             else

@@ -54,13 +54,13 @@ get_javavm()
 }
 
 DOTS_EXPORT(jobject)
-GetAndroidActivity()
+Unity_Get_AndroidActivity()
 {
     return tinyActivity;
 }
 
 DOTS_EXPORT(JavaVM*)
-GetJavaVM()
+Unity_Get_JavaVM()
 {
     return gJavaVm;
 }

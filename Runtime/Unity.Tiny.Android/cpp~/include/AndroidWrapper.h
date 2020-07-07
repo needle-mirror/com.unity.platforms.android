@@ -5,8 +5,8 @@ extern "C" {
     jobject get_activity() __attribute__ ((deprecated));
     JavaVM* get_javavm() __attribute__ ((deprecated));
 
-    jobject GetAndroidActivity();
-    JavaVM* GetJavaVM();
+    jobject Unity_Get_AndroidActivity();
+    JavaVM* Unity_Get_JavaVM();
 }
 
 class JavaVMThreadScope
@@ -15,10 +15,10 @@ public:
     JavaVMThreadScope()
     {
         m_env = 0;
-        m_detached = GetJavaVM()->GetEnv((void**)&m_env, JNI_VERSION_1_2) == JNI_EDETACHED;
+        m_detached = Unity_Get_JavaVM()->GetEnv((void**)&m_env, JNI_VERSION_1_2) == JNI_EDETACHED;
         if (m_detached)
         {
-            GetJavaVM()->AttachCurrentThread(&m_env, NULL);
+            Unity_Get_JavaVM()->AttachCurrentThread(&m_env, NULL);
         }
         CheckException();
     }
@@ -28,7 +28,7 @@ public:
         CheckException();
         if (m_detached)
         {
-            GetJavaVM()->DetachCurrentThread();
+            Unity_Get_JavaVM()->DetachCurrentThread();
         }
     }
 
