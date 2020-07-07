@@ -27,7 +27,6 @@ static int windowW = 0;
 static int windowH = 0;
 static int deviceOrientation = 0;
 static int screenOrientation = 0;
-static AAssetManager *nativeAssetManager = NULL;
 static ANativeWindow *nativeWindow = NULL;
 // input
 static std::vector<int> touch_info_stream;
@@ -249,6 +248,16 @@ set_orientation_android(int orientation)
     return env->CallStaticBooleanMethod(clazz, setOrientation, orientation);
 }
 
+DOTS_EXPORT(bool)
+is_orientation_allowed_android(int orientation)
+{
+    JavaVMThreadScope javaVM;
+    JNIEnv* env = javaVM.GetEnv();
+    jclass clazz = env->FindClass("com/unity3d/tinyplayer/UnityTinyActivity");
+    jmethodID isOrientationAllowed = env->GetStaticMethodID(clazz, "isAllowed", "(I)Z");
+    return env->CallStaticBooleanMethod(clazz, isOrientationAllowed, orientation);
+}
+
 DOTS_EXPORT(int)
 get_natural_orientation_android()
 {
@@ -326,38 +335,29 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_start(
     __android_log_print(ANDROID_LOG_INFO, "AndroidWrapper", "%s", dlerror());
 }
 
+#if STATIC_LINKING
 extern "C"
-JNIEXPORT void* loadAsset(const char *path, int *size, void* (*alloc)(size_t))
-{
-    AAsset* asset = AAssetManager_open(nativeAssetManager, path, AASSET_MODE_STREAMING);
-    if (asset == NULL)
-    {
-        __android_log_print(ANDROID_LOG_INFO, "AndroidWrapper", "can't read asset %s", path);
-        return NULL;
-    }
-    else
-    {
-        *size = (int)AAsset_getLength(asset);
-        void* data = alloc(*size);
-        unsigned char *ptr = (unsigned char*)data;
-        int remaining = (int)AAsset_getRemainingLength(asset);
-        int nb_read = 0;
-        while (remaining > 0)
-        {
-            nb_read = AAsset_read(asset, ptr, 1000 * 1024); // 1Mb is maximum chunk size for compressed assets
-            if (nb_read > 0) ptr += nb_read;
-            remaining = AAsset_getRemainingLength64(asset);
-        }
-        AAsset_close(asset);
-        return data;
-    }
-}
-
+JNIEXPORT void setNativeAssetManager(AAssetManager *assetManager);
+#endif
 extern "C"
 JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_setAssetManager(JNIEnv* env, jobject obj, jobject assetManager) 
 {
     __android_log_print(ANDROID_LOG_INFO, "AndroidWrapper", "UnityTinyAndroidJNILib_setAssetManager\n");
-    nativeAssetManager = AAssetManager_fromJava(env, assetManager);
+#if STATIC_LINKING
+    setNativeAssetManager(AAssetManager_fromJava(env, assetManager));
+#else
+    void *libio = dlopen("lib_unity_tiny_io.so", RTLD_NOW | RTLD_LOCAL);
+    if (libio != NULL)
+    {
+        typedef void (*fp_setNativeAssetManager)(AAssetManager *assetManager);
+        fp_setNativeAssetManager setNativeAssetManager = reinterpret_cast<fp_setNativeAssetManager>(dlsym(libio, "setNativeAssetManager"));
+        if (setNativeAssetManager != NULL)
+        {
+            setNativeAssetManager(AAssetManager_fromJava(env, assetManager));
+        }
+        dlclose(libio);
+    }
+#endif
 }
 
 extern "C"

@@ -16,7 +16,7 @@ namespace Unity.Tiny.Android
         private static AndroidWindowSystem sWindowSystem;
         public AndroidWindowSystem()
         {
-            m_initialized = false;
+            m_Initialized = false;
             sWindowSystem = this;
         }
 
@@ -95,13 +95,13 @@ namespace Unity.Tiny.Android
 
             try
             {
-                m_initialized = AndroidNativeCalls.init();
+                m_Initialized = AndroidNativeCalls.init();
             } catch
             {
                 Console.WriteLine("  Exception during initialization.");
-                m_initialized = false;
+                m_Initialized = false;
             }
-            if (!m_initialized)
+            if (!m_Initialized)
             {
                 Console.WriteLine("  Failed.");
                 World.QuitUpdate = true;
@@ -117,8 +117,8 @@ namespace Unity.Tiny.Android
             AndroidNativeCalls.getWindowSize(ref winw, ref winh);
             config.focused = true;
             config.visible = true;
-            config.orientation = m_screenOrientation;
-            Console.WriteLine($"Android Window init size {winw} x {winh} orientation {(int)m_screenOrientation}");
+            config.orientation = m_ScreenOrientation;
+            Console.WriteLine($"Android Window init size {winw} x {winh} orientation {(int)m_ScreenOrientation}");
             config.frameWidth = winw;
             config.frameHeight = winh;
             int sw = 0, sh = 0;
@@ -133,25 +133,29 @@ namespace Unity.Tiny.Android
             config.framebufferWidth = fbw;
             config.framebufferHeight = fbh;
             env.SetConfigData(config);
-            SetOrientationMask(m_screenOrientationMask);
+            CheckAllowedOrientation(ScreenOrientation.Portrait);
+            CheckAllowedOrientation(ScreenOrientation.ReversePortrait);
+            CheckAllowedOrientation(ScreenOrientation.Landscape);
+            CheckAllowedOrientation(ScreenOrientation.ReverseLandscape);
+            SetOrientationMask(m_ScreenOrientationMask);
 
-            m_frameTime = AndroidNativeCalls.time();
+            m_FrameTime = AndroidNativeCalls.time();
         }
 
         protected override void OnDestroy()
         {
             // close window
-            if (m_initialized)
+            if (m_Initialized)
             {
                 Console.WriteLine("Android Window shutdown.");
                 AndroidNativeCalls.shutdown(0);
-                m_initialized = false;
+                m_Initialized = false;
             }
         }
 
         protected override void OnUpdate()
         {
-            if (!m_initialized)
+            if (!m_Initialized)
                 return;
 
 #if UNITY_DOTSPLAYER
@@ -162,7 +166,7 @@ namespace Unity.Tiny.Android
             var env = World.GetExistingSystem<TinyEnvironment>();
             var config = env.GetConfigData<DisplayInfo>();
             int winw = 0, winh = 0;
-            var orientation = m_screenOrientation;
+            var orientation = m_ScreenOrientation;
             AndroidNativeCalls.getWindowSize(ref winw, ref winh);
             if (winw != config.width || winh != config.height || orientation != config.orientation)
             {
@@ -194,13 +198,13 @@ namespace Unity.Tiny.Android
                 Console.WriteLine("Android message pump exit.");
                 AndroidNativeCalls.shutdown(1);
                 World.QuitUpdate = true;
-                m_initialized = false;
+                m_Initialized = false;
                 return;
             }
             double newFrameTime = AndroidNativeCalls.time();
-            var timeData = env.StepWallRealtimeFrame(newFrameTime - m_frameTime);
+            var timeData = env.StepWallRealtimeFrame(newFrameTime - m_FrameTime);
             World.SetTime(timeData);
-            m_frameTime = newFrameTime;
+            m_FrameTime = newFrameTime;
         }
 
         // taken from Android SDK android.content.pm.ActivityInfo class
@@ -236,97 +240,111 @@ namespace Unity.Tiny.Android
             return ScreenOrientation.Portrait;
         }
 
+        private void CheckAllowedOrientation(ScreenOrientation orientation)
+        {
+            if (AndroidNativeCalls.isOrientationAllowed((int)ConvertToAndroidOrientation(orientation)))
+            {
+                m_AllowedOrientations |= orientation;
+            }
+        }
+
         public override void SetOrientationMask(ScreenOrientation orientation)
         {
             Assert.IsTrue(orientation != ScreenOrientation.Unknown, "Orientation mask cannot be 0");
-            m_screenOrientationMask = orientation;
+            var allowedOrientationMask = orientation & m_AllowedOrientations;
+            if (allowedOrientationMask == 0)
+            {
+                Console.WriteLine($"Orientation mask {(int)orientation} is disabled in project settings");
+                return;
+            }
+            m_ScreenOrientationMask = orientation;
             var screenOrientation = GetOrientation();
-            if (m_deviceOrientation != screenOrientation && (m_deviceOrientation & m_screenOrientationMask) != 0)
+            if (m_DeviceOrientation != screenOrientation && (m_DeviceOrientation & allowedOrientationMask) != 0)
             {
                 // it is possible to set screen orientation based on current device orientation
-                if (AndroidNativeCalls.setOrientation((int)ConvertToAndroidOrientation(m_deviceOrientation)))
+                if (AndroidNativeCalls.setOrientation((int)ConvertToAndroidOrientation(m_DeviceOrientation)))
                 {
-                    m_screenOrientation = m_deviceOrientation;
+                    m_ScreenOrientation = m_DeviceOrientation;
                 }
             }
-            else if ((screenOrientation & m_screenOrientationMask) == 0)
+            else if ((screenOrientation & allowedOrientationMask) == 0)
             {
                 // current orientation is not allowed anymore, trying to find the "best" possibile enabled variant
                 var newOrientation = ScreenOrientation.Portrait;
-                if (screenOrientation == ScreenOrientation.Portrait && (ScreenOrientation.ReversePortrait & m_screenOrientationMask) != 0)
+                if (screenOrientation == ScreenOrientation.Portrait && (ScreenOrientation.ReversePortrait & allowedOrientationMask) != 0)
                 {
                     newOrientation = ScreenOrientation.ReversePortrait;
                 }
-                else if (screenOrientation == ScreenOrientation.ReversePortrait && (ScreenOrientation.Portrait & m_screenOrientationMask) != 0)
+                else if (screenOrientation == ScreenOrientation.ReversePortrait && (ScreenOrientation.Portrait & allowedOrientationMask) != 0)
                 {
                     newOrientation = ScreenOrientation.Portrait;
                 }
-                else if (screenOrientation == ScreenOrientation.Landscape && (ScreenOrientation.ReverseLandscape & m_screenOrientationMask) != 0)
+                else if (screenOrientation == ScreenOrientation.Landscape && (ScreenOrientation.ReverseLandscape & allowedOrientationMask) != 0)
                 {
                     newOrientation = ScreenOrientation.ReverseLandscape;
                 }
-                else if (screenOrientation == ScreenOrientation.ReverseLandscape && (ScreenOrientation.Landscape & m_screenOrientationMask) != 0)
+                else if (screenOrientation == ScreenOrientation.ReverseLandscape && (ScreenOrientation.Landscape & allowedOrientationMask) != 0)
                 {
                     newOrientation = ScreenOrientation.Landscape;
                 }
-                else if ((ScreenOrientation.Portrait & m_screenOrientationMask) != 0)
+                else if ((ScreenOrientation.Portrait & allowedOrientationMask) != 0)
                 {
                     newOrientation = ScreenOrientation.Portrait;
                 }
-                else if ((ScreenOrientation.Landscape & m_screenOrientationMask) != 0)
+                else if ((ScreenOrientation.Landscape & allowedOrientationMask) != 0)
                 {
                     newOrientation = ScreenOrientation.Landscape;
                 }
-                else if ((ScreenOrientation.ReversePortrait & m_screenOrientationMask) != 0)
+                else if ((ScreenOrientation.ReversePortrait & allowedOrientationMask) != 0)
                 {
                     newOrientation = ScreenOrientation.ReversePortrait;
                 }
-                else if ((ScreenOrientation.ReverseLandscape & m_screenOrientationMask) != 0)
+                else if ((ScreenOrientation.ReverseLandscape & allowedOrientationMask) != 0)
                 {
                     newOrientation = ScreenOrientation.ReverseLandscape;
                 }
                 else
                 {
-                    Assert.IsTrue(false, "Unexpected orientation mask {(int)m_screenOrientationMask}");
+                    Assert.IsTrue(false, "Unexpected orientation mask {(int)m_ScreenOrientationMask}");
                 }
                 if (AndroidNativeCalls.setOrientation((int)ConvertToAndroidOrientation(newOrientation)))
                 {
-                    m_screenOrientation = newOrientation;
+                    m_ScreenOrientation = newOrientation;
                 }
             }
         }
 
         public override ScreenOrientation GetOrientationMask()
         {
-            return m_screenOrientationMask;
+            return m_ScreenOrientationMask;
         }
 
         private void OnScreenOrientationChanged(int orientation)
         {
-            m_screenOrientation = ConvertFromAndroidOrientation(orientation);
+            m_ScreenOrientation = ConvertFromAndroidOrientation(orientation);
         }
 
         private void OnDeviceOrientationChanged(int orientation)
         {
             var deviceOrientation = ConvertFromAndroidOrientation(orientation);
-            if (deviceOrientation != m_deviceOrientation)
+            if (deviceOrientation != m_DeviceOrientation)
             {
                 PlatformEvents.SendDeviceOrientationEvent(this, new DeviceOrientationEvent((int)deviceOrientation));
-                if ((deviceOrientation & m_screenOrientationMask) != 0)
+                if ((deviceOrientation & m_ScreenOrientationMask) != 0)
                 {
                     AndroidNativeCalls.setOrientation(orientation);
                 }
-                m_deviceOrientation = deviceOrientation;
+                m_DeviceOrientation = deviceOrientation;
             }
         }
 
-        private ScreenOrientation m_deviceOrientation = ScreenOrientation.Unknown;
-        private ScreenOrientation m_screenOrientation = ScreenOrientation.Unknown;
-        // TODO probably initialize with the value from build settings
-        private ScreenOrientation m_screenOrientationMask = ScreenOrientation.AutoRotation;
+        private ScreenOrientation m_DeviceOrientation = ScreenOrientation.Unknown;
+        private ScreenOrientation m_ScreenOrientation = ScreenOrientation.Unknown;
+        private ScreenOrientation m_ScreenOrientationMask = ScreenOrientation.AutoRotation;
+        private ScreenOrientation m_AllowedOrientations = ScreenOrientation.Unknown;
 
-        private bool m_initialized;
-        private double m_frameTime;
+        private bool m_Initialized;
+        private double m_FrameTime;
     }
 
     public static class AndroidNativeCalls
@@ -398,6 +416,9 @@ namespace Unity.Tiny.Android
 
         [DllImport("lib_unity_tiny_android", EntryPoint = "set_orientation_android")]
         public static extern bool setOrientation(int orientation);
+
+        [DllImport("lib_unity_tiny_android", EntryPoint = "is_orientation_allowed_android")]
+        public static extern bool isOrientationAllowed(int orientation);
 
         [DllImport("lib_unity_tiny_android", EntryPoint = "get_natural_orientation_android")]
         public static extern int getNaturalOrientation();

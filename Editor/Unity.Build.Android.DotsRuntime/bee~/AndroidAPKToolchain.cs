@@ -577,8 +577,8 @@ namespace Bee.Toolchain.Android
             }
 
             var localProperties = new StringBuilder();
-            localProperties.AppendLine($"sdk.dir={AndroidApkToolchain.Config.ExternalTools.SdkPath}");
-            localProperties.AppendLine($"ndk.dir={AndroidApkToolchain.Config.ExternalTools.NdkPath}");
+            localProperties.AppendLine($"sdk.dir={new NPath(AndroidApkToolchain.Config.ExternalTools.SdkPath).ToString()}");
+            localProperties.AppendLine($"ndk.dir={new NPath(AndroidApkToolchain.Config.ExternalTools.NdkPath).ToString()}");
             var localPropertiesPath = gradleProjectPath.Combine("local.properties");
             Backend.Current.AddWriteTextAction(localPropertiesPath, localProperties.ToString());
             m_projectFiles.Add(localPropertiesPath);
