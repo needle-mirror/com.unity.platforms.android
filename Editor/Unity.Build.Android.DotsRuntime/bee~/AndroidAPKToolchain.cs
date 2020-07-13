@@ -40,6 +40,7 @@ namespace Bee.Toolchain.Android
             public static AndroidArchitectures Architectures { get; private set; }
             public static AndroidExportSettings ExportSettings { get; private set; }
             public static AndroidInstallLocation InstallLocation { get; private set; }
+            public static AndroidKeystore Keystore { get; private set; }
 
             public static bool Validate()
             {
@@ -111,7 +112,7 @@ namespace Bee.Toolchain.Android
 
         static AndroidApkToolchain()
         {
-            BuildConfigurationReader.Read(NPath.CurrentDirectory.Combine("buildconfiguration.json"), typeof(AndroidApkToolchain.Config));
+            BuildConfiguration.Read(NPath.CurrentDirectory.Combine("buildconfiguration.json"), typeof(AndroidApkToolchain.Config));
         }
 
         public static AndroidApkToolchain GetToolChain(bool useStatic, bool mainTarget)
@@ -520,6 +521,7 @@ namespace Bee.Toolchain.Android
 
             // Android docs say "density" value was added in API level 17, but it doesn't compile with target SDK level lower than 24.
             string configChanges = ((int)AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel > 23) ? AndroidConfigChanges + "|density" : AndroidConfigChanges;
+            var useKeystore = BuildConfiguration.HasComponent<AndroidKeystore>();
 
             var templateStrings = new Dictionary<string, string>
             {
@@ -535,6 +537,8 @@ namespace Bee.Toolchain.Android
                 { "**TARGETSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel).ToString()},
                 { "**CONFIGCHANGES**", configChanges },
                 { "**ABIFILTERS**", abiFilters },
+                { "**SIGN**", AndroidApkToolchain.Config.Keystore.GetSigningConfigs(useKeystore) },
+                { "**SIGNCONFIG**", AndroidApkToolchain.Config.Keystore.GetSigningConfig(useKeystore) },
                 { "**DEPENDENCIES**", gradleDependencies.ToString() },
                 { "**KOTLINCLASSPATH**", kotlinClassPath },
                 { "**KOTLINPLUGIN**", kotlinPlugin },
@@ -628,15 +632,10 @@ namespace Bee.Toolchain.Android
                                    (releaseBuild ? "assembleRelease" : "assembleDebug");
                 var gradleExecutableString = $"cd {gradleProjectPath.InQuotes()} && {javaLaunchPath.InQuotes()} -classpath {gradleLaunchPath.InQuotes()} org.gradle.launcher.GradleMain {gradleCommand} && cd {pathToRoot.InQuotes()}";
 
-                NPath gradleBuildPath;
-                if (AndroidApkToolchain.BuildAppBundle)
-                {
-                    gradleBuildPath = gradleProjectPath.Combine("build/outputs/bundle").Combine(releaseBuild ? "release/gradle.aab" : "debug/gradle.aab");
-                }
-                else
-                {
-                    gradleBuildPath = gradleProjectPath.Combine("build/outputs/apk").Combine(releaseBuild ? "release/gradle-release.apk" : "debug/gradle-debug.apk");
-                }
+                var config = releaseBuild ? "release" : "debug";
+                var gradleBuildPath = gradleProjectPath.Combine("build/outputs").
+                                      Combine(AndroidApkToolchain.BuildAppBundle ? "bundle" : "apk").
+                                      Combine($"{config}/gradle-{config}.{(AndroidApkToolchain.BuildAppBundle ? "aab" : "apk")}");
                 m_projectFiles.Add(buildGradlePath);
                 m_projectFiles.Add(mainLibPath);
 

@@ -11,9 +11,9 @@ namespace Unity.Platforms
         }
 
         [MonoPInvokeCallbackAttribute]
-        static bool ManagedRAFCallback()
+        static bool ManagedRAFCallback(double timestampInSeconds)
         {
-            return staticM();
+            return staticM(timestampInSeconds);
         }
 
         private static RunLoop.RunLoopDelegate staticM;

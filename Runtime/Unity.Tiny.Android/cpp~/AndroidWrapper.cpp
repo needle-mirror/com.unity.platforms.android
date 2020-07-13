@@ -34,7 +34,7 @@ static std::vector<int> key_stream;
 static std::mutex key_stream_lock;
 static std::mutex touch_stream_lock;
 // c# delegates
-static bool (*raf)() = 0;
+static bool (*raf)(double) = 0;
 static void (*pausef)(int) = 0;
 static void (*destroyf)() = 0;
 static void (*screen_orientationf)(int) = 0;
@@ -130,7 +130,7 @@ time_android() {
 }
 
 DOTS_EXPORT(bool)
-rafcallbackinit_android(bool (*func)()) {
+rafcallbackinit_android(bool (*func)(double)) {
     if (raf)
         return false;
     raf = func;
@@ -374,7 +374,7 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_init(J
 extern "C"
 JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_step(JNIEnv* env, jobject obj)
 {
-    if (raf && !raf())
+    if (raf && !raf(time_android()))
         shutdown_android(2);
 }
 

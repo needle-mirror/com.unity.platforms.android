@@ -138,8 +138,6 @@ namespace Unity.Tiny.Android
             CheckAllowedOrientation(ScreenOrientation.Landscape);
             CheckAllowedOrientation(ScreenOrientation.ReverseLandscape);
             SetOrientationMask(m_ScreenOrientationMask);
-
-            m_FrameTime = AndroidNativeCalls.time();
         }
 
         protected override void OnDestroy()
@@ -201,10 +199,6 @@ namespace Unity.Tiny.Android
                 m_Initialized = false;
                 return;
             }
-            double newFrameTime = AndroidNativeCalls.time();
-            var timeData = env.StepWallRealtimeFrame(newFrameTime - m_FrameTime);
-            World.SetTime(timeData);
-            m_FrameTime = newFrameTime;
         }
 
         // taken from Android SDK android.content.pm.ActivityInfo class
@@ -344,7 +338,6 @@ namespace Unity.Tiny.Android
         private ScreenOrientation m_AllowedOrientations = ScreenOrientation.Unknown;
 
         private bool m_Initialized;
-        private double m_FrameTime;
     }
 
     public static class AndroidNativeCalls
@@ -374,9 +367,6 @@ namespace Unity.Tiny.Android
         [DllImport("lib_unity_tiny_android", EntryPoint = "messagePump_android")]
         [return: MarshalAs(UnmanagedType.I1)]
         public static extern bool messagePump();
-
-        [DllImport("lib_unity_tiny_android", EntryPoint = "time_android")]
-        public static extern double time();
 
         [DllImport("lib_unity_tiny_android", EntryPoint = "pausecallbackinit_android")]
         public static extern bool set_pause_callback(IntPtr func);

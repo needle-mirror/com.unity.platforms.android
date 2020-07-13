@@ -28,11 +28,15 @@ namespace Unity.Build.Android.DotsRuntime
             typeof(AndroidArchitectures),
             typeof(AndroidExternalTools),
             typeof(AndroidExportSettings),
-            typeof(AndroidInstallLocation)
+            typeof(AndroidInstallLocation),
+            typeof(AndroidKeystore)
         };
 
         string PackageName { get; set; }
+        AndroidExternalTools ExternalTools { get; set; }
         AndroidExportSettings ExportSettings { get; set; }
+        bool UseKeystore { get; set; }
+        AndroidKeystore Keystore { get; set; }
 
         string m_BundleToolJar;
         string BundleToolJar
@@ -54,13 +58,13 @@ namespace Unity.Build.Android.DotsRuntime
             }
         }
 
-        private ShellProcessOutput UninstallApp(string adbPath, string apkName, string buildDir)
+        private ShellProcessOutput UninstallApp(string apkName, string buildDir)
         {
             // checking that app is already installed
             var result = Shell.Run(new ShellProcessArgs()
             {
                 ThrowOnError = false,
-                Executable = adbPath,
+                Executable = AdbPath,
                 Arguments = new string[] { "shell", "pm", "list", "packages", PackageName },
                 WorkingDirectory = new DirectoryInfo(buildDir)
             });
@@ -70,7 +74,7 @@ namespace Unity.Build.Android.DotsRuntime
                 result = Shell.Run(new ShellProcessArgs()
                 {
                     ThrowOnError = false,
-                    Executable = adbPath,
+                    Executable = AdbPath,
                     Arguments = new string[] { "uninstall", PackageName },
                     WorkingDirectory = new DirectoryInfo(buildDir)
                 });
@@ -78,12 +82,12 @@ namespace Unity.Build.Android.DotsRuntime
             return result;
         }
 
-        private ShellProcessOutput InstallApk(string adbPath, string apkName, string buildDir)
+        private ShellProcessOutput InstallApk(string apkName, string buildDir)
         {
             return Shell.Run(new ShellProcessArgs()
             {
                 ThrowOnError = false,
-                Executable = adbPath,
+                Executable = AdbPath,
                 Arguments = new string[] { "install", "\"" + apkName + "\"" },
                 WorkingDirectory = new DirectoryInfo(buildDir)
             });
@@ -98,47 +102,63 @@ namespace Unity.Build.Android.DotsRuntime
         {
             var apksName = GetApksName(buildDir);
             //TODO check for mutliple device installing
-            return Shell.Run(new ShellProcessArgs()
+
+            string keystorePassFile = null;
+            string keyaliasPassFile = null;
+            if (UseKeystore)
+            {
+                keystorePassFile = Path.Combine(buildDir, "keystore.pass");
+                keyaliasPassFile = Path.Combine(buildDir, "keyalias.pass");
+                File.WriteAllText(keystorePassFile, Keystore.KeystorePass);
+                File.WriteAllText(keyaliasPassFile, Keystore.KeyaliasPass);
+            }
+            var result = Shell.Run(new ShellProcessArgs()
             {
                 ThrowOnError = false,
-                Executable = AndroidTools.JavaPath,
-                //TODO add signing params in case of custom keystore
+                Executable = JavaPath,
                 Arguments = new string[] {
                     "-jar",
                     $"\"{BundleToolJar}\"",
                     "build-apks",
                     $"--bundle=\"{aabName}\"",
                     $"--output=\"{apksName}\"",
-                    "--overwrite"
+                    "--overwrite",
+                    (UseKeystore ? $"--ks=\"{Keystore.KeystoreFullPath}\" --ks-pass=file:\"{keystorePassFile}\" --ks-key-alias=\"{Keystore.KeyaliasName}\" --key-pass=file:\"{keyaliasPassFile}\"" : "")
                 },
                 WorkingDirectory = new DirectoryInfo(buildDir)
             });
+            if (UseKeystore)
+            {
+                File.Delete(keystorePassFile);
+                File.Delete(keyaliasPassFile);
+            }
+            return result;
         }
 
-        private ShellProcessOutput InstallApks(string adbPath, string buildDir)
+        private ShellProcessOutput InstallApks(string buildDir)
         {
             var apksName = GetApksName(buildDir);
             return Shell.Run(new ShellProcessArgs()
             {
                 ThrowOnError = false,
-                Executable = AndroidTools.JavaPath,
+                Executable = JavaPath,
                 Arguments = new string[] {
                     "-jar",
                     $"\"{BundleToolJar}\"",
                     "install-apks",
                     $"--apks=\"{apksName}\"",
-                    $"--adb=\"{adbPath}\""
+                    $"--adb=\"{AdbPath}\""
                 },
                 WorkingDirectory = new DirectoryInfo(buildDir)
             });
         }
 
-        private ShellProcessOutput LaunchApp(string adbPath, string buildDir)
+        private ShellProcessOutput LaunchApp(string buildDir)
         {
             return Shell.Run(new ShellProcessArgs()
             {
                 ThrowOnError = false,
-                Executable = adbPath,
+                Executable = AdbPath,
                 Arguments = new string[] {
                         "shell", "am", "start",
                         "-a", "android.intent.action.MAIN",
@@ -154,9 +174,8 @@ namespace Unity.Build.Android.DotsRuntime
         public override bool Run(FileInfo buildTarget)
         {
             var buildDir = buildTarget.Directory.FullName;
-            var adbPath = AndroidTools.AdbPath;
 
-            var result = UninstallApp(adbPath, buildTarget.FullName, buildDir);
+            var result = UninstallApp(buildTarget.FullName, buildDir);
             if (ExportSettings?.TargetType == AndroidTargetType.AndroidAppBundle)
             {
                 result = BuildApks(buildTarget.FullName, buildDir);
@@ -165,7 +184,7 @@ namespace Unity.Build.Android.DotsRuntime
                 {
                     throw new Exception($"Cannot build APKS : {result.FullOutput}");
                 }
-                result = InstallApks(adbPath, buildDir);
+                result = InstallApks(buildDir);
                 if (result.ExitCode != 0)
                 {
                     throw new Exception($"Cannot install APKS : {result.FullOutput}");
@@ -173,13 +192,13 @@ namespace Unity.Build.Android.DotsRuntime
             }
             else
             {
-                result = InstallApk(adbPath, buildTarget.FullName, buildDir);
+                result = InstallApk(buildTarget.FullName, buildDir);
                 if (!result.FullOutput.Contains("Success"))
                 {
                     throw new Exception($"Cannot install APK : {result.FullOutput}");
                 }
             }
-            result = LaunchApp(adbPath, buildDir);
+            result = LaunchApp(buildDir);
             if (result.Succeeded)
             {
                 return true;
@@ -193,10 +212,9 @@ namespace Unity.Build.Android.DotsRuntime
         public override ShellProcessOutput RunTestMode(string exeName, string workingDirPath, int timeout)
         {
             ShellProcessOutput output;
-            var adbPath = AndroidTools.AdbPath;
 
             var executable = $"{workingDirPath}/{exeName}{ExecutableExtension}";
-            output = InstallApk(adbPath, executable, workingDirPath);
+            output = InstallApk(executable, workingDirPath);
             if (!output.FullOutput.Contains("Success"))
             {
                 return output;
@@ -206,14 +224,14 @@ namespace Unity.Build.Android.DotsRuntime
             Shell.Run(new ShellProcessArgs()
             {
                 ThrowOnError = false,
-                Executable = adbPath,
+                Executable = AdbPath,
                 Arguments = new string[] {
                         "logcat", "-c"
                 },
                 WorkingDirectory = new DirectoryInfo(workingDirPath)
             });
 
-            output = LaunchApp(adbPath, workingDirPath);
+            output = LaunchApp(workingDirPath);
 
             System.Threading.Thread.Sleep(timeout == 0 ? 2000 : timeout); // to kill process anyway,
                                                                           // should be rewritten to support tests which quits after execution
@@ -222,7 +240,7 @@ namespace Unity.Build.Android.DotsRuntime
             Shell.Run(new ShellProcessArgs()
             {
                 ThrowOnError = false,
-                Executable = adbPath,
+                Executable = AdbPath,
                 Arguments = new string[] {
                         "shell", "am", "force-stop",
                         PackageName
@@ -234,7 +252,7 @@ namespace Unity.Build.Android.DotsRuntime
             output = Shell.Run(new ShellProcessArgs()
             {
                 ThrowOnError = false,
-                Executable = adbPath,
+                Executable = AdbPath,
                 Arguments = new string[] {
                         "logcat", "-d"
                 },
@@ -252,7 +270,62 @@ namespace Unity.Build.Android.DotsRuntime
             base.WriteBuildConfiguration(context, path);
             var appId = context.GetComponentOrDefault<ApplicationIdentifier>();
             PackageName = appId.PackageName;
+            ExternalTools = context.GetComponentOrDefault<AndroidExternalTools>();
             ExportSettings = context.GetComponentOrDefault<AndroidExportSettings>();
+            UseKeystore = context.HasComponent<AndroidKeystore>();
+            Keystore = context.GetComponentOrDefault<AndroidKeystore>();
+        }
+
+        private static string AdbName
+        {
+            get
+            {
+#if UNITY_EDITOR_WIN
+                return "adb.exe";
+#elif UNITY_EDITOR_OSX
+                return "adb";
+#else
+                return "adb";
+#endif
+            }
+        }
+
+        private static string JavaName
+        {
+            get
+            {
+#if UNITY_EDITOR_WIN
+                return "java.exe";
+#elif UNITY_EDITOR_OSX
+                return "java";
+#else
+                return "java";
+#endif
+            }
+        }
+
+        private string AdbPath
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(ExternalTools.SdkPath))
+                {
+                    throw new Exception("ADB is not found");
+                }
+                return Path.Combine(ExternalTools.SdkPath, "platform-tools", AdbName);
+            }
+        }
+
+        private string JavaPath
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(ExternalTools.JavaPath))
+                {
+                    throw new Exception("JDK is not found");
+                }
+                return Path.Combine(ExternalTools.JavaPath, "bin", JavaName);
+            }
         }
     }
 }
