@@ -268,7 +268,7 @@ get_natural_orientation_android()
     return env->CallStaticIntMethod(clazz, getNaturalOrientation);
 }
 
-#if UNITY_DOTSPLAYER_IL2CPP_WAIT_FOR_MANAGED_DEBUGGER
+#if UNITY_DOTSRUNTIME_IL2CPP_WAIT_FOR_MANAGED_DEBUGGER
 
 typedef void(*BroadcastFunction)();
 static BroadcastFunction s_Broadcast = NULL;
@@ -299,7 +299,7 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_broadc
         s_Broadcast();
 }
 
-#endif // UNITY_DOTSPLAYER_IL2CPP_WAIT_FOR_MANAGED_DEBUGGER
+#endif // UNITY_DOTSRUNTIME_IL2CPP_WAIT_FOR_MANAGED_DEBUGGER
 
 extern "C"
 JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_setActivity(JNIEnv * env, jobject obj, jobject activity)
@@ -340,7 +340,7 @@ extern "C"
 JNIEXPORT void setNativeAssetManager(AAssetManager *assetManager);
 #endif
 extern "C"
-JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_setAssetManager(JNIEnv* env, jobject obj, jobject assetManager) 
+JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_setAssetManager(JNIEnv* env, jobject obj, jobject assetManager)
 {
     __android_log_print(ANDROID_LOG_INFO, "AndroidWrapper", "UnityTinyAndroidJNILib_setAssetManager\n");
 #if STATIC_LINKING
