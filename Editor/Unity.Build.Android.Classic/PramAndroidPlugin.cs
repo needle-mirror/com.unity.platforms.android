@@ -2,7 +2,7 @@
 using NiceIO;
 using System.IO;
 using System.Collections.Generic;
-using Unity.Build.Classic.Private;
+using Unity.Build.Internals;
 
 namespace Unity.Build.Android.Classic
 {
@@ -10,7 +10,7 @@ namespace Unity.Build.Android.Classic
     sealed class PramAndroidPlugin : PramPlatformPlugin
     {
         public override string[] Providers { get; } = { "android" };
-        public override NPath PlatformAssemblyLoadPath
+        public override string PlatformAssemblyLoadPath
         {
             get { return Path.GetFullPath("Packages/com.unity.platforms.android/Editor/Unity.Build.Android.Classic/pram~"); }
         }

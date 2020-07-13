@@ -2,6 +2,7 @@
     "name": "Unity.Build.Android.DotsRuntime",
     "references": [
         "Unity.Build",
+        "Unity.Build.Internals",
         "Unity.Build.Android",
         "Unity.Build.DotsRuntime"
     ],

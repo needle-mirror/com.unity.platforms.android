@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Unity.Build.Common;
+using Unity.Build.Internals;
 using Unity.Build.DotsRuntime;
 using Unity.Build.Android;
 using BuildTarget = Unity.Build.DotsRuntime.BuildTarget;
@@ -61,7 +62,7 @@ namespace Unity.Build.Android.DotsRuntime
         private ShellProcessOutput UninstallApp(string apkName, string buildDir)
         {
             // checking that app is already installed
-            var result = Shell.Run(new ShellProcessArgs()
+            var result = ShellProcess.Run(new ShellProcessArguments()
             {
                 ThrowOnError = false,
                 Executable = AdbPath,
@@ -71,7 +72,7 @@ namespace Unity.Build.Android.DotsRuntime
             if (result.FullOutput.Contains(PackageName))
             {
                 // uninstall previous version, it may be signed with different key, so re-installing is not possible
-                result = Shell.Run(new ShellProcessArgs()
+                result = ShellProcess.Run(new ShellProcessArguments()
                 {
                     ThrowOnError = false,
                     Executable = AdbPath,
@@ -84,7 +85,7 @@ namespace Unity.Build.Android.DotsRuntime
 
         private ShellProcessOutput InstallApk(string apkName, string buildDir)
         {
-            return Shell.Run(new ShellProcessArgs()
+            return ShellProcess.Run(new ShellProcessArguments()
             {
                 ThrowOnError = false,
                 Executable = AdbPath,
@@ -112,7 +113,7 @@ namespace Unity.Build.Android.DotsRuntime
                 File.WriteAllText(keystorePassFile, Keystore.KeystorePass);
                 File.WriteAllText(keyaliasPassFile, Keystore.KeyaliasPass);
             }
-            var result = Shell.Run(new ShellProcessArgs()
+            var result = ShellProcess.Run(new ShellProcessArguments()
             {
                 ThrowOnError = false,
                 Executable = JavaPath,
@@ -138,7 +139,7 @@ namespace Unity.Build.Android.DotsRuntime
         private ShellProcessOutput InstallApks(string buildDir)
         {
             var apksName = GetApksName(buildDir);
-            return Shell.Run(new ShellProcessArgs()
+            return ShellProcess.Run(new ShellProcessArguments()
             {
                 ThrowOnError = false,
                 Executable = JavaPath,
@@ -155,7 +156,7 @@ namespace Unity.Build.Android.DotsRuntime
 
         private ShellProcessOutput LaunchApp(string buildDir)
         {
-            return Shell.Run(new ShellProcessArgs()
+            return ShellProcess.Run(new ShellProcessArguments()
             {
                 ThrowOnError = false,
                 Executable = AdbPath,
@@ -209,7 +210,7 @@ namespace Unity.Build.Android.DotsRuntime
             }
         }
 
-        public override ShellProcessOutput RunTestMode(string exeName, string workingDirPath, int timeout)
+        internal override ShellProcessOutput RunTestMode(string exeName, string workingDirPath, int timeout)
         {
             ShellProcessOutput output;
 
@@ -221,7 +222,7 @@ namespace Unity.Build.Android.DotsRuntime
             }
 
             // clear logcat
-            Shell.Run(new ShellProcessArgs()
+            ShellProcess.Run(new ShellProcessArguments()
             {
                 ThrowOnError = false,
                 Executable = AdbPath,
@@ -237,7 +238,7 @@ namespace Unity.Build.Android.DotsRuntime
                                                                           // should be rewritten to support tests which quits after execution
 
             // killing on timeout
-            Shell.Run(new ShellProcessArgs()
+            ShellProcess.Run(new ShellProcessArguments()
             {
                 ThrowOnError = false,
                 Executable = AdbPath,
@@ -249,7 +250,7 @@ namespace Unity.Build.Android.DotsRuntime
             });
 
             // get logcat
-            output = Shell.Run(new ShellProcessArgs()
+            output = ShellProcess.Run(new ShellProcessArguments()
             {
                 ThrowOnError = false,
                 Executable = AdbPath,

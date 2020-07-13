@@ -5,6 +5,7 @@ using System;
 using System.IO;
 using Bee.Core;
 using Unity.Build;
+using Unity.Build.Internals;
 using Unity.Build.Classic;
 using Unity.Build.Classic.Private;
 using Unity.Build.Classic.Private.IncrementalClassicPipeline;
