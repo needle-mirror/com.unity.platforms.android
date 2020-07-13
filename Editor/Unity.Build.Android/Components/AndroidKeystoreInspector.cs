@@ -69,13 +69,19 @@ namespace Unity.Build.Android
             var index = Array.IndexOf(aliases, Target.KeyaliasName);
             if (index == -1)
             {
-                Target = AndroidKeystore.NewInstanceWithAlias(Target, aliases[0]);
+                if (Target.KeyaliasName != aliases[0])
+                {
+                    Target = AndroidKeystore.NewInstanceWithAlias(Target, aliases[0]);
+                }
                 index = 0;
             }
             var keyaliasName = new PopupField<string>("Keyalias Name", new List<string>(aliases), index,
                 val =>
-                { 
-                    Target = AndroidKeystore.NewInstanceWithAlias(Target, val);
+                {
+                    if (Target.KeyaliasName != val)
+                    {
+                        Target = AndroidKeystore.NewInstanceWithAlias(Target, val);
+                    }
                     return val;
                 });
             m_KeyaliasInfo.Add(keyaliasName);
