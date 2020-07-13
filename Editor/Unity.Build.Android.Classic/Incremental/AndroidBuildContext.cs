@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using Bee.Core;
 using Unity.Build;
+using Unity.Build.Common;
 using Unity.Build.Classic.Private.IncrementalClassicPipeline;
 using UnityEditor;
 

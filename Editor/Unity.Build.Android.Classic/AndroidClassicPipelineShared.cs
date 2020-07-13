@@ -1,3 +1,4 @@
+using Unity.Build.Common;
 using Unity.Build.Classic;
 
 namespace Unity.Build.Android.Classic

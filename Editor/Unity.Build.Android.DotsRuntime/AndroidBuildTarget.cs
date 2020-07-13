@@ -30,6 +30,7 @@ namespace Unity.Build.Android.DotsRuntime
             typeof(AndroidExternalTools),
             typeof(AndroidExportSettings),
             typeof(AndroidInstallLocation),
+            typeof(AndroidRenderOutsideSafeArea),
             typeof(AndroidKeystore)
         };
 

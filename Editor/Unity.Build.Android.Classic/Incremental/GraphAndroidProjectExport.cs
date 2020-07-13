@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using Unity.Build;
+using Unity.Build.Common;
 using Unity.Build.Classic;
 using Unity.Build.Classic.Private.IncrementalClassicPipeline;
 

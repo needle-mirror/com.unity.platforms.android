@@ -4,10 +4,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Build;
+using Unity.Build.Common;
 using Unity.Build.Classic.Private;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UIOrientation = UnityEditor.UIOrientation;
 
 namespace Unity.Build.Android.Classic
 {

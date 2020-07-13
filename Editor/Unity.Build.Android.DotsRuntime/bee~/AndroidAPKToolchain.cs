@@ -40,6 +40,7 @@ namespace Bee.Toolchain.Android
             public static AndroidArchitectures Architectures { get; private set; }
             public static AndroidExportSettings ExportSettings { get; private set; }
             public static AndroidInstallLocation InstallLocation { get; private set; }
+            public static AndroidRenderOutsideSafeArea RenderOutsideSafeArea { get; private set; }
             public static AndroidKeystore Keystore { get; private set; }
 
             public static bool Validate()
@@ -522,6 +523,7 @@ namespace Bee.Toolchain.Android
             // Android docs say "density" value was added in API level 17, but it doesn't compile with target SDK level lower than 24.
             string configChanges = ((int)AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel > 23) ? AndroidConfigChanges + "|density" : AndroidConfigChanges;
             var useKeystore = BuildConfiguration.HasComponent<AndroidKeystore>();
+            var renderOutsideSafeArea = BuildConfiguration.HasComponent<AndroidRenderOutsideSafeArea>();
 
             var templateStrings = new Dictionary<string, string>
             {
@@ -532,6 +534,9 @@ namespace Bee.Toolchain.Android
                 { "**VERSIONCODE**", AndroidApkToolchain.Config.VersionCode.VersionCode.ToString() },
                 { "**ORIENTATION**", GetOrientationAttr() },
                 { "**INSTALLLOCATION**", AndroidApkToolchain.Config.InstallLocation?.PreferredInstallLocationAsString() },
+                { "**CUTOUTMODE**", AndroidRenderOutsideSafeArea.CutoutMode(renderOutsideSafeArea) },
+                { "**NOTCHCONFIG**", AndroidRenderOutsideSafeArea.NotchConfig(renderOutsideSafeArea) },
+                { "**NOTCHSUPPORT**", AndroidRenderOutsideSafeArea.NotchSupport(renderOutsideSafeArea) },
                 { "**GAMENAME**", m_gameName },
                 { "**MINSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.MinAPILevel).ToString() },
                 { "**TARGETSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel).ToString()},

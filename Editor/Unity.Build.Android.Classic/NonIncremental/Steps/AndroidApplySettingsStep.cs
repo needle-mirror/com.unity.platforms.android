@@ -1,4 +1,5 @@
 using System;
+using Unity.Build.Common;
 using Unity.Build.Classic;
 using UnityEditor;
 
