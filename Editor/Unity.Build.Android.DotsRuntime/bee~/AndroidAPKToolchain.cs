@@ -40,6 +40,7 @@ namespace Bee.Toolchain.Android
             public static AndroidExportSettings ExportSettings { get; private set; }
             public static AndroidInstallLocation InstallLocation { get; private set; }
             public static AndroidRenderOutsideSafeArea RenderOutsideSafeArea { get; private set; }
+            public static AndroidIcons Icons { get; private set; }
             public static AndroidKeystore Keystore { get; private set; }
 
             public static bool Validate()
@@ -524,12 +525,17 @@ namespace Bee.Toolchain.Android
             var useKeystore = BuildConfiguration.HasComponent<AndroidKeystore>();
             var renderOutsideSafeArea = BuildConfiguration.HasComponent<AndroidRenderOutsideSafeArea>();
 
+            var icons = AndroidApkToolchain.Config.Icons;
+            var hasBackground = icons.Icons.Any(i => !String.IsNullOrEmpty(i.Background));
+            var hasCustomIcons = hasBackground || icons.Icons.Any(i => !String.IsNullOrEmpty(i.Foreground) || !String.IsNullOrEmpty(i.Legacy));
+            var version = AndroidApkToolchain.Config.Settings.Version;
+            var versionFieldCount = version.Revision > 0 ? 4 : 3;
             var templateStrings = new Dictionary<string, string>
             {
                 { "**LOADLIBRARIES**", loadLibraries.ToString() },
                 { "**PACKAGENAME**", AndroidApkToolchain.Config.Identifier.PackageName },
                 { "**PRODUCTNAME**", AndroidApkToolchain.Config.Settings.ProductName },
-                { "**VERSIONNAME**", "1.0.0" /*AndroidApkToolchain.Config.Settings.Version*/ }, // property hasn't been implemented yet
+                { "**VERSIONNAME**", version.ToString(versionFieldCount) },
                 { "**VERSIONCODE**", AndroidApkToolchain.Config.VersionCode.VersionCode.ToString() },
                 { "**ORIENTATION**", GetOrientationAttr() },
                 { "**INSTALLLOCATION**", AndroidApkToolchain.Config.InstallLocation?.PreferredInstallLocationAsString() },
@@ -550,12 +556,30 @@ namespace Bee.Toolchain.Android
                 { "**ALLOWED_REVERSE_PORTRAIT**", AndroidApkToolchain.AllowedOrientationReversePortrait ? "true" : "false" },
                 { "**ALLOWED_LANDSCAPE**", AndroidApkToolchain.AllowedOrientationLandscape ? "true" : "false" },
                 { "**ALLOWED_REVERSE_LANDSCAPE**", AndroidApkToolchain.AllowedOrientationReverseLandscape ? "true" : "false" },
+                { "**BACKGROUND_PATH**", hasBackground ? "mipmap" : "drawable" }
             };
+
+            // copy icon files
+            if (hasCustomIcons)
+            {
+                for (int i = 0; i < icons.Icons.Length; ++i)
+                {
+                    var dpi = ((ScreenDPI)i).ToString().ToLower();
+                    CopyIcon(gradleSrcPath, gradleProjectPath, dpi, "ic_launcher_foreground.png", icons.Icons[i].Foreground);
+                    CopyIcon(gradleSrcPath, gradleProjectPath, dpi, "ic_launcher_background.png", icons.Icons[i].Background);
+                    CopyIcon(gradleSrcPath, gradleProjectPath, dpi, "app_icon.png", icons.Icons[i].Legacy);
+                }
+            }
 
             // copy and patch project files
             NPath buildGradlePath = null;
             foreach (var r in gradleSrcPath.Files(true))
             {
+                if ((hasCustomIcons && r.HasDirectory("mipmap-mdpi")) ||
+                    (hasBackground && r.HasDirectory("drawable"))) // skipping icons files if there are custom ones
+                {
+                    continue;
+                }
                 var destPath = gradleProjectPath.Combine(r.RelativeTo(gradleSrcPath));
                 if (r.Extension == "template")
                 {
@@ -593,6 +617,16 @@ namespace Bee.Toolchain.Android
             Backend.Current.AddDependency(buildGradlePath, m_projectFiles);
 
             return buildGradlePath;
+        }
+
+        private void CopyIcon(NPath srcPath, NPath destPath, string dpi, string iconName, string configIcon)
+        {
+            if (String.IsNullOrEmpty(configIcon))
+            {
+                return;
+            }
+            destPath = destPath.Combine($"src/main/res/mipmap-{dpi}", iconName);
+            m_projectFiles.Add(CopyTool.Instance().Setup(destPath, configIcon));
         }
 
         private NPath PackageApp(NPath buildPath, BuiltNativeProgram mainProgram)

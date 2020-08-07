@@ -2,6 +2,7 @@
     "name": "Unity.Build.Android",
     "references": [
         "Unity.Build",
+        "Unity.Build.Editor",
         "Unity.Build.Classic",
         "Unity.Build.Classic.Private",
         "Unity.Properties",
