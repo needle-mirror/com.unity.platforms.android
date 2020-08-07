@@ -3,7 +3,6 @@ using System.Text;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Linq;
-using Bee.NativeProgramSupport.Building;
 using Bee.Core;
 using Bee.DotNet;
 using Bee.Stevedore;
@@ -13,7 +12,7 @@ using Bee.Toolchain.Extension;
 using Bee.BuildTools;
 using Bee.NativeProgramSupport;
 using NiceIO;
-using Unity.BuildSystem.NativeProgramSupport;
+
 using Unity.Build.Common;
 using Unity.Build.DotsRuntime;
 using Unity.Build.Android;

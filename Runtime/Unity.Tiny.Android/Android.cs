@@ -156,11 +156,6 @@ namespace Unity.Tiny.Android
             if (!m_Initialized)
                 return;
 
-#if UNITY_DOTSPLAYER
-            Unity.Profiling.Profiler.FrameEnd();
-            Unity.Profiling.Profiler.FrameBegin();
-#endif
-
             var env = World.GetExistingSystem<TinyEnvironment>();
             var config = env.GetConfigData<DisplayInfo>();
             int winw = 0, winh = 0;

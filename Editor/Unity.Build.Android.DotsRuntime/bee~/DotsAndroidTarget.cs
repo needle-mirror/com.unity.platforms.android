@@ -1,7 +1,6 @@
-using Bee.NativeProgramSupport.Building;
 using Bee.Toolchain.Android;
 using DotsBuildTargets;
-using Unity.BuildSystem.NativeProgramSupport;
+using Bee.NativeProgramSupport;
 
 abstract class DotsAndroidTarget : DotsBuildSystemTarget
 {
