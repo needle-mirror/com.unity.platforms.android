@@ -565,9 +565,9 @@ namespace Bee.Toolchain.Android
                 for (int i = 0; i < icons.Icons.Length; ++i)
                 {
                     var dpi = ((ScreenDPI)i).ToString().ToLower();
-                    CopyIcon(gradleSrcPath, gradleProjectPath, dpi, "ic_launcher_foreground.png", icons.Icons[i].Foreground);
-                    CopyIcon(gradleSrcPath, gradleProjectPath, dpi, "ic_launcher_background.png", icons.Icons[i].Background);
-                    CopyIcon(gradleSrcPath, gradleProjectPath, dpi, "app_icon.png", icons.Icons[i].Legacy);
+                    CopyIcon(gradleProjectPath, dpi, "ic_launcher_foreground.png", icons.Icons[i].Foreground);
+                    CopyIcon(gradleProjectPath, dpi, "ic_launcher_background.png", icons.Icons[i].Background);
+                    CopyIcon(gradleProjectPath, dpi, "app_icon.png", icons.Icons[i].Legacy);
                 }
             }
 
@@ -619,14 +619,19 @@ namespace Bee.Toolchain.Android
             return buildGradlePath;
         }
 
-        private void CopyIcon(NPath srcPath, NPath destPath, string dpi, string iconName, string configIcon)
+        private void CopyIcon(NPath destPath, string dpi, string iconName, string configIcon)
         {
             if (String.IsNullOrEmpty(configIcon))
             {
                 return;
             }
             destPath = destPath.Combine($"src/main/res/mipmap-{dpi}", iconName);
-            m_projectFiles.Add(CopyTool.Instance().Setup(destPath, configIcon));
+            var srcPath = new NPath(configIcon);
+            if (srcPath.IsRelative)
+            {
+                srcPath = (new NPath("../..")).Combine(srcPath);
+            }
+            m_projectFiles.Add(CopyTool.Instance().Setup(destPath, srcPath));
         }
 
         private NPath PackageApp(NPath buildPath, BuiltNativeProgram mainProgram)
