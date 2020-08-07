@@ -110,8 +110,7 @@ namespace Unity.Tiny.Android
 
             SetCallbacks();
 
-            var env = World.GetExistingSystem<TinyEnvironment>();
-            var config = env.GetConfigData<DisplayInfo>();
+            var config = GetSingleton<DisplayInfo>();
 
             int winw = 0, winh = 0;
             AndroidNativeCalls.getWindowSize(ref winw, ref winh);
@@ -132,7 +131,7 @@ namespace Unity.Tiny.Android
             AndroidNativeCalls.getFramebufferSize(ref fbw, ref fbh);
             config.framebufferWidth = fbw;
             config.framebufferHeight = fbh;
-            env.SetConfigData(config);
+            SetSingleton(config);
             CheckAllowedOrientation(ScreenOrientation.Portrait);
             CheckAllowedOrientation(ScreenOrientation.ReversePortrait);
             CheckAllowedOrientation(ScreenOrientation.Landscape);
@@ -156,8 +155,7 @@ namespace Unity.Tiny.Android
             if (!m_Initialized)
                 return;
 
-            var env = World.GetExistingSystem<TinyEnvironment>();
-            var config = env.GetConfigData<DisplayInfo>();
+            var config = GetSingleton<DisplayInfo>();
             int winw = 0, winh = 0;
             var orientation = m_ScreenOrientation;
             AndroidNativeCalls.getWindowSize(ref winw, ref winh);
@@ -179,7 +177,7 @@ namespace Unity.Tiny.Android
                     AndroidNativeCalls.getFramebufferSize(ref fbw, ref fbh);
                     config.framebufferWidth = fbw;
                     config.framebufferHeight = fbh;
-                    env.SetConfigData(config);
+                    SetSingleton(config);
                 }
                 else
                 {
