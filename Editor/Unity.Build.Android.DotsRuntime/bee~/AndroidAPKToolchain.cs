@@ -595,8 +595,12 @@ namespace Bee.Toolchain.Android
             return buildGradlePath;
         }
 
-        private NPath PackageApp(NPath buildPath, NPath mainLibPath)
+        private NPath PackageApp(NPath buildPath, BuiltNativeProgram mainProgram)
         {
+            var mainLibPath = mainProgram.Path;
+            m_projectFiles.Add(mainLibPath);
+            m_projectFiles.AddRange(mainProgram.Deployables.Select(d => d.Path));
+
             if (m_apkToolchain == null)
             {
                 Console.WriteLine($"Error: not Android APK toolchain");
@@ -607,7 +611,6 @@ namespace Bee.Toolchain.Android
                 var deployedPath = buildPath.Combine(m_gameName);
                 var buildGradlePath = GenerateGradleProject(deployedPath);
                 m_projectFiles.Add(buildGradlePath);
-                m_projectFiles.Add(mainLibPath);
 
                 // stub action to have deployedPath in build tree and set correct dependencies
                 Backend.Current.AddAction(
@@ -641,7 +644,6 @@ namespace Bee.Toolchain.Android
                                       Combine(AndroidApkToolchain.BuildAppBundle ? "bundle" : "apk").
                                       Combine($"{config}/gradle-{config}.{(AndroidApkToolchain.BuildAppBundle ? "aab" : "apk")}");
                 m_projectFiles.Add(buildGradlePath);
-                m_projectFiles.Add(mainLibPath);
 
                 Backend.Current.AddAction(
                     actionName: "Build Gradle project",
@@ -693,7 +695,7 @@ namespace Bee.Toolchain.Android
 
             var result = base.DeployTo(libDirectory, alreadyDeployed);
 
-            return new Executable(PackageApp(targetDirectory, result.Path));
+            return new Executable(PackageApp(targetDirectory, result));
         }
     }
 

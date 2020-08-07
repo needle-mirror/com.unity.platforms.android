@@ -201,6 +201,13 @@ namespace Unity.Build.Android.DotsRuntime
                 }
             }
             result = LaunchApp(buildDir);
+            // killing adb to unlock build folder
+            ShellProcess.Run(new ShellProcessArguments()
+            {
+                ThrowOnError = false,
+                Executable = AdbPath,
+                Arguments = new string[] { "kill-server" }
+            });
             if (result.Succeeded)
             {
                 return true;
@@ -276,6 +283,41 @@ namespace Unity.Build.Android.DotsRuntime
             ExportSettings = context.GetComponentOrDefault<AndroidExportSettings>();
             UseKeystore = context.HasComponent<AndroidKeystore>();
             Keystore = context.GetComponentOrDefault<AndroidKeystore>();
+            CheckScriptsDebuggingPossible(context);
+        }
+
+        // Script Debugging is not allowed for armv7/arm64 apks, so we need to break build process and ask developer to change build settings
+        private void CheckScriptsDebuggingPossible(BuildContext context)
+        {
+            if (context.GetComponentOrDefault<AndroidArchitectures>().Architectures != (AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64))
+            {
+                return;
+            }
+            // we cannot directly check IL2CPPSettings component because it is not included to UsedComponents array
+            foreach (var component in context.GetComponents<IDotsRuntimeBuildModifier>())
+            {
+                if (!(component is IL2CPPSettings))
+                {
+                    continue;
+                }
+                // IL2CPPSettings component found
+                var scriptDebugging = (component as IL2CPPSettings).ScriptDebugging;
+                if (scriptDebugging == BuildSettingToggle.Enabled)
+                {
+                    throw new Exception($"Script Debugging is allowed for single architecture apk only. Either disable Script Debugging in IL2CPP settings component or enable only one architecture in AndroidArchitectures component");
+                }
+                else if (scriptDebugging == BuildSettingToggle.UseBuildConfiguration &&
+                         context.GetComponentOrDefault<DotsRuntimeBuildProfile>().Configuration == BuildType.Debug)
+                {
+                    throw new Exception($"Script Debugging is enabled by default for Debug configuration but it's allowed for single architecture apk only. Either disable Script Debugging in IL2CPP settings component or enable only one architecture in AndroidArchitectures component");
+                }
+                return;
+            }
+            // no IL2CPPSettings component
+            if (context.GetComponentOrDefault<DotsRuntimeBuildProfile>().Configuration == BuildType.Debug)
+            {
+                throw new Exception($"Script Debugging is enabled by default for Debug configuration but it's allowed for single architecture apk only. Either disable Script Debugging in IL2CPP settings component (you need to add this component to the Build configuration) or enable only one architecture in AndroidArchitectures component");
+            }
         }
 
         private static string AdbName
