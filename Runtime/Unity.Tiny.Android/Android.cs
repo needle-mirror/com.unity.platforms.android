@@ -110,28 +110,8 @@ namespace Unity.Tiny.Android
 
             SetCallbacks();
 
-            var config = GetSingleton<DisplayInfo>();
+            UpdateDisplayInfo(true);
 
-            int winw = 0, winh = 0;
-            AndroidNativeCalls.getWindowSize(ref winw, ref winh);
-            config.focused = true;
-            config.visible = true;
-            config.orientation = m_ScreenOrientation;
-            Console.WriteLine($"Android Window init size {winw} x {winh} orientation {(int)m_ScreenOrientation}");
-            config.frameWidth = winw;
-            config.frameHeight = winh;
-            int sw = 0, sh = 0;
-            AndroidNativeCalls.getScreenSize(ref sw, ref sh);
-            config.screenWidth = sw;
-            config.screenHeight = sh;
-            config.width = winw;
-            config.height = winh;
-            config.screenDpiScale = 1.0f;
-            int fbw = 0, fbh = 0;
-            AndroidNativeCalls.getFramebufferSize(ref fbw, ref fbh);
-            config.framebufferWidth = fbw;
-            config.framebufferHeight = fbh;
-            SetSingleton(config);
             CheckAllowedOrientation(ScreenOrientation.Portrait);
             CheckAllowedOrientation(ScreenOrientation.ReversePortrait);
             CheckAllowedOrientation(ScreenOrientation.Landscape);
@@ -155,35 +135,7 @@ namespace Unity.Tiny.Android
             if (!m_Initialized)
                 return;
 
-            var config = GetSingleton<DisplayInfo>();
-            int winw = 0, winh = 0;
-            var orientation = m_ScreenOrientation;
-            AndroidNativeCalls.getWindowSize(ref winw, ref winh);
-            if (winw != config.width || winh != config.height || orientation != config.orientation)
-            {
-                if (config.autoSizeToFrame)
-                {
-                    Console.WriteLine($"Android Window update size {winw} x {winh} orientation {(int)orientation}");
-                    if (config.orientation != orientation)
-                    {
-                        PlatformEvents.SendScreenOrientationEvent(this, new ScreenOrientationEvent((int)orientation));
-                        config.orientation = orientation;
-                    }
-                    config.width = winw;
-                    config.height = winh;
-                    config.frameWidth = winw;
-                    config.frameHeight = winh;
-                    int fbw = 0, fbh = 0;
-                    AndroidNativeCalls.getFramebufferSize(ref fbw, ref fbh);
-                    config.framebufferWidth = fbw;
-                    config.framebufferHeight = fbh;
-                    SetSingleton(config);
-                }
-                else
-                {
-                    AndroidNativeCalls.resize(config.width, config.height);
-                }
-            }
+            UpdateDisplayInfo(false);
             if (!AndroidNativeCalls.messagePump())
             {
                 Console.WriteLine("Android message pump exit.");
@@ -191,6 +143,50 @@ namespace Unity.Tiny.Android
                 World.QuitUpdate = true;
                 m_Initialized = false;
                 return;
+            }
+        }
+
+        private void UpdateDisplayInfo(bool firstTime)
+        {
+            var config = GetSingleton<DisplayInfo>();
+            if (firstTime)
+            {
+                config.focused = true;
+                config.visible = true;
+                config.screenDpiScale = 1.0f;
+                config.orientation = m_ScreenOrientation;
+            }
+            int sw = 0, sh = 0;
+            AndroidNativeCalls.getScreenSize(ref sw, ref sh);
+            int winw = 0, winh = 0;
+            AndroidNativeCalls.getWindowSize(ref winw, ref winh);
+            if (firstTime || m_ScreenOrientation != config.orientation ||
+                sw != config.screenWidth || sh != config.screenHeight ||
+                winw != config.width || winh != config.height ||
+                config.framebufferWidth != config.width || config.framebufferHeight != config.height)
+            {
+                Console.WriteLine($"Android Window update, screen size {sw} x {sh}, window size {winw} x {winh}, orientation {(int)m_ScreenOrientation}");
+                if (config.orientation != m_ScreenOrientation)
+                {
+                    PlatformEvents.SendScreenOrientationEvent(this, new ScreenOrientationEvent((int)m_ScreenOrientation));
+                    config.orientation = m_ScreenOrientation;
+                }
+                config.screenWidth = sw;
+                config.screenHeight = sh;
+                if (config.autoSizeToFrame)
+                {
+                    config.width = sw;
+                    config.height = sh;
+                }
+                else
+                {
+                    AndroidNativeCalls.setResolution(config.width, config.height);
+                }
+                config.frameWidth = config.width;
+                config.frameHeight = config.height;
+                config.framebufferWidth = config.width;
+                config.framebufferHeight = config.height;
+                SetSingleton(config);
             }
         }
 
@@ -345,12 +341,6 @@ namespace Unity.Tiny.Android
         [DllImport("lib_unity_tiny_android", EntryPoint = "getScreenSize_android")]
         public static extern void getScreenSize(ref int w, ref int h);
 
-        [DllImport("lib_unity_tiny_android", EntryPoint = "getFramebufferSize_android")]
-        public static extern void getFramebufferSize(ref int w, ref int h);
-
-        [DllImport("lib_unity_tiny_android", EntryPoint = "getWindowFrameSize_android")]
-        public static extern void getWindowFrameSize(ref int left, ref int top, ref int right, ref int bottom);
-
         [DllImport("lib_unity_tiny_android", EntryPoint = "shutdown_android")]
         public static extern void shutdown(int exitCode);
 
@@ -396,6 +386,9 @@ namespace Unity.Tiny.Android
 
         [DllImport("lib_unity_tiny_android", EntryPoint = "get_sensor_stream_android")]
         public static extern unsafe double * getSensorStream(int type, ref int len);
+
+        [DllImport("lib_unity_tiny_android", EntryPoint = "set_resolution_android")]
+        public static extern bool setResolution(int width, int height);
 
         [DllImport("lib_unity_tiny_android", EntryPoint = "set_orientation_android")]
         public static extern bool setOrientation(int orientation);

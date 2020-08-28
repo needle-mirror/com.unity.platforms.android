@@ -17,11 +17,11 @@ namespace Unity.Build.Android
                 var size = AndroidIcons.kSize[index];
                 var legacySize = AndroidIcons.kLegacySize[index];
                 Add(new IconSelector("adaptive foreground", size, size, target.Target.Icons[index].Foreground,
-                    val => { var icons = new AndroidIcons(target.Target); icons.Icons[index].Foreground = val; target.Target = icons; } ));
+                    val => { target.Target.Icons[index].Foreground = val; target.NotifyChanged(); } ));
                 Add(new IconSelector("adaptive background", size, size, target.Target.Icons[index].Background,
-                    val => { var icons = new AndroidIcons(target.Target); icons.Icons[index].Background = val; target.Target = icons; } ));
+                    val => { target.Target.Icons[index].Background = val; target.NotifyChanged(); } ));
                 Add(new IconSelector("legacy", legacySize, legacySize, target.Target.Icons[index].Legacy,
-                    val => { var icons = new AndroidIcons(target.Target); icons.Icons[index].Legacy = val; target.Target = icons; } ));
+                    val => { target.Target.Icons[index].Legacy = val; target.NotifyChanged(); } ));
             }
         }
 

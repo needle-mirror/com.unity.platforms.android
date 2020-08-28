@@ -21,8 +21,6 @@ namespace Bee.Toolchain.Android
 {
     internal class AndroidApkToolchain : AndroidNdkToolchain
     {
-        private static AndroidApkToolchain[] ToolChains = new AndroidApkToolchain[3];
-
         public override CLikeCompiler CppCompiler { get; }
         public override NativeProgramFormat DynamicLibraryFormat { get; }
         public override NativeProgramFormat ExecutableFormat { get; }
@@ -113,7 +111,9 @@ namespace Bee.Toolchain.Android
 
         static AndroidApkToolchain()
         {
-            BuildConfiguration.Read(NPath.CurrentDirectory.Combine("buildconfiguration.json"), typeof(AndroidApkToolchain.Config));
+            var buildconfiguration = NPath.CurrentDirectory.Combine("buildconfiguration.json");
+            Backend.Current.RegisterFileInfluencingGraph(buildconfiguration);
+            BuildConfiguration.Read(buildconfiguration, typeof(AndroidApkToolchain.Config));
         }
 
         public static AndroidApkToolchain GetToolChain(bool useStatic, bool mainTarget)
@@ -124,19 +124,16 @@ namespace Bee.Toolchain.Android
                 return new AndroidApkToolchain(new AndroidNdkLocator(new ARMv7Architecture()).UserDefaultOrDummy, useStatic, mainTarget);
             }
 
-            int index;
             Architecture architecture;
             if (mainTarget)
             {
                 if ((Config.Architectures.Architectures & AndroidArchitecture.ARMv7) != 0)
                 {
                     architecture = new ARMv7Architecture();
-                    index = 0;
                 }
                 else if ((Config.Architectures.Architectures & AndroidArchitecture.ARM64) != 0)
                 {
                     architecture = new Arm64Architecture();
-                    index = 1;
                 }
                 else // shouldn't happen
                 {
@@ -146,19 +143,13 @@ namespace Bee.Toolchain.Android
             else if (IsFatApk) // complementary target for fat apk
             {
                 architecture = new Arm64Architecture();
-                index = 2;
             }
             else // complementary target for single-architecture apk
             {
                 return null;
             }
-            if (ToolChains[index] == null)
-            {
-                var androidNdk = (new AndroidNdkLocator(architecture)).UseSpecific(new NPath(Config.ExternalTools.NdkPath));
-                var toolchain = new AndroidApkToolchain(androidNdk, useStatic, mainTarget);
-                ToolChains[index] = toolchain;
-            }
-            return ToolChains[index];
+            var androidNdk = (new AndroidNdkLocator(architecture)).UseSpecific(new NPath(Config.ExternalTools.NdkPath));
+            return new AndroidApkToolchain(androidNdk, useStatic, mainTarget);
         }
 
         public AndroidApkToolchain(AndroidNdk ndk, bool useStatic, bool mainTarget) : base(ndk)
@@ -565,14 +556,18 @@ namespace Bee.Toolchain.Android
                 for (int i = 0; i < icons.Icons.Length; ++i)
                 {
                     var dpi = ((ScreenDPI)i).ToString().ToLower();
-                    CopyIcon(gradleProjectPath, dpi, "ic_launcher_foreground.png", icons.Icons[i].Foreground);
-                    CopyIcon(gradleProjectPath, dpi, "ic_launcher_background.png", icons.Icons[i].Background);
+                    if (AndroidApkToolchain.Config.APILevels.TargetSDKSupportsAdaptiveIcons)
+                    {
+                        CopyIcon(gradleProjectPath, dpi, "ic_launcher_foreground.png", icons.Icons[i].Foreground);
+                        CopyIcon(gradleProjectPath, dpi, "ic_launcher_background.png", icons.Icons[i].Background);
+                    }
                     CopyIcon(gradleProjectPath, dpi, "app_icon.png", icons.Icons[i].Legacy);
                 }
             }
 
             // copy and patch project files
             NPath buildGradlePath = null;
+            var apiRx = new Regex(@".+res[\\|\/].+-v([0-9]+)$", RegexOptions.Compiled);
             foreach (var r in gradleSrcPath.Files(true))
             {
                 if ((hasCustomIcons && r.HasDirectory("mipmap-mdpi")) ||
@@ -580,6 +575,20 @@ namespace Bee.Toolchain.Android
                 {
                     continue;
                 }
+                if (!AndroidApkToolchain.Config.APILevels.TargetSDKSupportsAdaptiveIcons && r.FileName.StartsWith("ic_launcher_"))
+                {
+                    continue;
+                }
+                var match = apiRx.Match(r.Parent.ToString());
+                if (match.Success)
+                {
+                    var api = Int32.Parse(match.Groups[1].Value);
+                    if (api > (int)AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel)
+                    {
+                        continue;
+                    }
+                }
+
                 var destPath = gradleProjectPath.Combine(r.RelativeTo(gradleSrcPath));
                 if (r.Extension == "template")
                 {

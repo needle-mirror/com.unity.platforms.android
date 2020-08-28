@@ -7,17 +7,6 @@ namespace Unity.Build.Android
 {
     internal sealed partial class AndroidKeystore : IBuildComponent, ICustomBuildComponentConstructor
     {
-        public static AndroidKeystore NewInstanceWithAlias(AndroidKeystore old, string aliasName)
-        {
-            return new AndroidKeystore()
-            {
-                KeystoreFullPath = old.KeystoreFullPath,
-                KeystorePass = old.KeystorePass,
-                KeyaliasName = aliasName,
-                KeyaliasPass = old.KeyaliasPass
-            };
-        }
-
         void ICustomBuildComponentConstructor.Construct(BuildConfiguration.ReadOnly config)
         {
             var group = config.GetBuildTargetGroup();

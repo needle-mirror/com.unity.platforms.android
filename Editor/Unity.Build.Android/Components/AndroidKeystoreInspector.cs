@@ -71,7 +71,8 @@ namespace Unity.Build.Android
             {
                 if (Target.KeyaliasName != aliases[0])
                 {
-                    Target = AndroidKeystore.NewInstanceWithAlias(Target, aliases[0]);
+                    Target.KeyaliasName = aliases[0];
+                    NotifyChanged();
                 }
                 index = 0;
             }
@@ -80,7 +81,8 @@ namespace Unity.Build.Android
                 {
                     if (Target.KeyaliasName != val)
                     {
-                        Target = AndroidKeystore.NewInstanceWithAlias(Target, val);
+                        Target.KeyaliasName = val;
+                        NotifyChanged();
                     }
                     return val;
                 });

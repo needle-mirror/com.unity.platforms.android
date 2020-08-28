@@ -32,14 +32,5 @@ namespace Unity.Build.Android
                 Icons[i] = new IconsSet();
             }
         }
-
-        public AndroidIcons(AndroidIcons from)
-        {
-            ScreenDPI = from.ScreenDPI;
-            for (int i = 0; i < Icons.Length; ++i)
-            {
-                Icons[i] = from.Icons[i];
-            }
-        }
     }
 }

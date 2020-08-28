@@ -1,4 +1,6 @@
+using System;
 using Bee.Toolchain.Android;
+using Bee.Tools;
 using DotsBuildTargets;
 using Bee.NativeProgramSupport;
 
@@ -21,6 +23,19 @@ class DotsAndroidTargetMain : DotsAndroidTarget
             var target = DotsAndroidTargetComplementary.GetInstance();
             return target.ToolChain != null ? target : null;
         }
+    }
+
+    public override bool ValidateManagedDebugging(bool mdb)
+    {
+        if (mdb && ComplementaryTarget != null)
+        {
+            Errors.PrintError(@"Managed Debugging is disabled on fat (armv7/arm64) Android builds.
+To use Managed Debugging enable single architecture in AndroidArchitectures component.
+To build fat Android APK use Release Configuration or explicitly disable Scripts Debugging (using IL2CPP Setting component).");
+            Environment.Exit(1);
+            return false;
+        }
+        return mdb;
     }
 }
 

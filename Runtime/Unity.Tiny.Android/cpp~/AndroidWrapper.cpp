@@ -25,6 +25,8 @@ static void* m_libmain = NULL;
 static bool shouldClose = false;
 static int windowW = 0;
 static int windowH = 0;
+static int screenW = 0;
+static int screenH = 0;
 static int deviceOrientation = 0;
 static int screenOrientation = 0;
 static ANativeWindow *nativeWindow = NULL;
@@ -78,42 +80,18 @@ getWindowSize_android(int *width, int *height) {
 
 DOTS_EXPORT(void)
 getScreenSize_android(int *width, int *height) {
-    *width = windowW;
-    *height = windowH;
-}
-
-DOTS_EXPORT(void)
-getFramebufferSize_android(int *width, int *height) {
-    *width = windowW;
-    *height = windowH;
-}
-
-DOTS_EXPORT(void)
-getWindowFrameSize(int *left, int *top, int *right, int *bottom) {
-    *left = *top = 0;
-    *right = windowW;
-    *bottom = windowH;
+    *width = screenW;
+    *height = screenH;
 }
 
 DOTS_EXPORT(void)
 shutdown_android(int exitCode) {
-    // BS call something to kill app
+    // TODO: call something to kill app
     raf = 0;
-}
-
-DOTS_EXPORT(void)
-resize_android(int width, int height) {
-    //glfwSetWindowSize(mainWindow, width, height);
-    windowW = width;
-    windowH = height;
 }
 
 DOTS_EXPORT(bool)
 messagePump_android() {
-    /*if (!mainWindow || shouldClose)
-        return false;
-    glfwMakeContextCurrent(mainWindow);
-    glfwPollEvents();*/
     return !shouldClose;
 }
 
@@ -236,6 +214,21 @@ get_sensor_stream_android(int type, int *len)
     if (len == NULL)
         return NULL;
     return m_AndroidSensors.GetSensorData(type, len);
+}
+
+DOTS_EXPORT(void)
+set_resolution_android(int width, int height)
+{
+    if (windowW != width || windowH != height)
+    {
+        JavaVMThreadScope javaVM;
+        JNIEnv* env = javaVM.GetEnv();
+        jclass clazz = env->FindClass("com/unity3d/tinyplayer/UnityTinyActivity");
+        jmethodID setResolution = env->GetStaticMethodID(clazz, "setResolution", "(II)V");
+        env->CallStaticVoidMethod(clazz, setResolution, width, height);
+        windowW = width;
+        windowH = height;
+    }
 }
 
 DOTS_EXPORT(bool)
@@ -406,8 +399,8 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_touche
     std::lock_guard<std::mutex> lock(touch_stream_lock);
     touch_info_stream.push_back((int)id);
     touch_info_stream.push_back((int)action);
-    touch_info_stream.push_back((int)xpos);
-    touch_info_stream.push_back(windowH - 1 - (int)ypos);
+    touch_info_stream.push_back((int)xpos * windowW / screenW);
+    touch_info_stream.push_back(windowH - 1 - (int)ypos * windowH / screenH);
 }
 
 extern "C"
@@ -419,6 +412,13 @@ JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_keyeve
     key_stream.push_back(scancode);
     key_stream.push_back(action);
     key_stream.push_back(mods);
+}
+
+extern "C"
+JNIEXPORT void JNICALL Java_com_unity3d_tinyplayer_UnityTinyAndroidJNILib_screenSizeChanged(JNIEnv* env, jobject obj, jint width, jint height)
+{
+    screenW = width;
+    screenH = height;
 }
 
 extern "C"

@@ -44,5 +44,7 @@ namespace Unity.Build.Android
                 return m_TargetAPILevel;
             }
         }
+
+        public bool TargetSDKSupportsAdaptiveIcons => (int)ResolvedTargetAPILevel >= 26;
     }
 }
