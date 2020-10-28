@@ -6,9 +6,9 @@ using UnityEditor;
 namespace Unity.Build.Android
 {
     [FormerName("Unity.Platforms.Android.Build.AndroidAPILevels, Unity.Platforms.Android.Build")]
-    internal sealed partial class AndroidAPILevels : IBuildComponent, ICustomBuildComponentConstructor
+    internal sealed partial class AndroidAPILevels : IBuildComponent, IBuildComponentInitialize
     {
-        void ICustomBuildComponentConstructor.Construct(BuildConfiguration.ReadOnly config)
+        public void Initialize(BuildConfiguration.ReadOnly config)
         {
             if (!(config.GetBuildPipeline() is ClassicPipelineBase))
                 return;

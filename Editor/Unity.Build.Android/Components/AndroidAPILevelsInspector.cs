@@ -24,6 +24,7 @@ namespace Unity.Build.Android
             { 26, "Android 8.0 'Oreo' (API level 26)" },
             { 27, "Android 8.1 'Oreo' (API level 27)" },
             { 28, "Android 9.0 'Pie' (API level 28)" },
+            { 29, "Android 10.0 (API level 29)" },
         };
 
         private int ResolveIndex(List<int> choices, AndroidSdkVersions apiLevel)

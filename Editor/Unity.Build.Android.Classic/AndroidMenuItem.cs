@@ -1,6 +1,4 @@
-﻿using Bee.Core;
-using System.IO;
-using Unity.Build.Classic;
+﻿using Unity.Build.Classic;
 using Unity.Build.Common;
 using Unity.Build.Editor;
 using UnityEditor;
@@ -11,20 +9,22 @@ namespace Unity.Build.Android.Classic
     {
         const string k_CreateBuildConfigurationAssetClassic = BuildConfigurationMenuItem.k_BuildConfigurationMenu + "Android Classic Build Configuration";
 
-        [MenuItem(k_CreateBuildConfigurationAssetClassic, true)]
-        static bool CreateBuildConfigurationAssetClassicValidation()
-        {
-            return Directory.Exists(AssetDatabase.GetAssetPath(Selection.activeObject));
-        }
-
         [MenuItem(k_CreateBuildConfigurationAssetClassic)]
         static void CreateBuildConfigurationAssetClassic()
         {
-            Selection.activeObject = BuildConfigurationMenuItem.CreateAssetInActiveDirectory(
-                "AndroidClassic",
+            var newAsset = BuildConfigurationMenuItem.CreateAssetInActiveDirectory("AndroidClassic", GetDefaultComponents());
+            if (newAsset != null && newAsset)
+                ProjectWindowUtil.ShowCreatedAsset(newAsset);
+        }
+
+        static IBuildComponent[] GetDefaultComponents()
+        {
+            return new IBuildComponent[]
+            {
                 new GeneralSettings(),
                 new SceneList(),
-                new ClassicBuildProfile { Platform = new AndroidPlatform() });
+                new ClassicBuildProfile {Platform = Platform.Android}
+            };
         }
     }
 }

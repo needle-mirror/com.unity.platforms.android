@@ -1,4 +1,3 @@
-using Bee.Core;
 using System;
 using System.IO;
 using Unity.Build;
@@ -15,8 +14,7 @@ namespace Unity.Build.Android.Classic
 {
     sealed class AndroidClassicNonIncrementalPipeline : ClassicNonIncrementalPipelineBase
     {
-        protected override BuildTarget BuildTarget => BuildTarget.Android;
-        public override Platform Platform => new AndroidPlatform();
+        public override Platform Platform => Platform.Android;
 
         public override BuildStepCollection BuildSteps { get; } = new[]
         {
@@ -52,7 +50,7 @@ namespace Unity.Build.Android.Classic
         protected override BoolResult OnCanRun(RunContext context)
         {
 #if UNITY_ANDROID
-            var artifact = context.GetLastBuildArtifact<AndroidArtifact>();
+            var artifact = context.GetBuildArtifact<AndroidArtifact>();
             if (artifact == null)
             {
                 return BoolResult.False($"Could not retrieve build artifact '{nameof(AndroidArtifact)}'. Are you exporting a gradle project? Running gradleproject is not supported.");
@@ -74,7 +72,7 @@ namespace Unity.Build.Android.Classic
             AndroidClassicPipelineShared.SetupPlayerConnection(context);
 
 #if UNITY_ANDROID
-            var artifact = context.GetLastBuildArtifact<AndroidArtifact>();
+            var artifact = context.GetBuildArtifact<AndroidArtifact>();
             var fileName = artifact.OutputTargetFile.FullName;
             if (Path.GetExtension(fileName) != ".apk")
                 return context.Failure($"Expected .apk in path, but got '{fileName}'.");

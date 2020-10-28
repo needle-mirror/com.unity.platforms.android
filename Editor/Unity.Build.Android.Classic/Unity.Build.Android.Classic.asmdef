@@ -14,10 +14,6 @@
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,
-    "precompiledReferences": [
-        "bee.dll",
-        "Bee.Toolchain.Android.dll"
-    ],
     "autoReferenced": false,
     "defineConstraints": [],
     "versionDefines": [],

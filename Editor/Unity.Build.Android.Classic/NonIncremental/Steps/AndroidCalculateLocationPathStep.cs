@@ -9,7 +9,7 @@ namespace Unity.Build.Android.Classic
         {
             var gradleOutput = context.GetValue<AndroidNonIncrementalData>().GradleOuputDirectory;
             // Set AndroidProjectArtifact, since there's no better place
-            var gradleArtifact = context.GetOrCreateValue<AndroidProjectArtifact>();
+            var gradleArtifact = context.GetOrCreateBuildArtifact<AndroidProjectArtifact>();
             gradleArtifact.ProjectDirectory = new DirectoryInfo(gradleOutput);
             return gradleOutput;
         }

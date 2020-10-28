@@ -38,8 +38,10 @@ namespace Bee.Toolchain.Android
             public static AndroidExportSettings ExportSettings { get; private set; }
             public static AndroidInstallLocation InstallLocation { get; private set; }
             public static AndroidRenderOutsideSafeArea RenderOutsideSafeArea { get; private set; }
+            public static AndroidAspectRatio AspectRatio { get; private set; }
             public static AndroidIcons Icons { get; private set; }
             public static AndroidKeystore Keystore { get; private set; }
+            public static ARCoreSettings ARCore { get; private set; }
 
             public static bool Validate()
             {
@@ -66,6 +68,12 @@ namespace Bee.Toolchain.Android
                     !Orientations.AllowAutoRotateToReverseLandscape))
                 {
                     Console.WriteLine("There are no allowed orientations for the application");
+                    return false;
+                }
+                if (BuildConfiguration.HasComponent<ARCoreSettings>() && ARCore.Requirement == Requirement.Required &&
+                    APILevels.MinAPILevel < AndroidSdkVersions.AndroidApiLevel24)
+                {
+                    Console.WriteLine($"Android Min SDK version must be at least 24 for ARCore Required apps");
                     return false;
                 }
                 if (String.IsNullOrEmpty(ExternalTools.NdkPath) || !(new NPath(ExternalTools.NdkPath)).DirectoryExists())
@@ -277,7 +285,12 @@ namespace Bee.Toolchain.Android
             return target.Parent.Combine("lib" + target.FileName).ChangeExtension("so");
         }
 
-        public override BuiltNativeProgram CombineObjectFiles(NPath destination, CodeGen codegen, IEnumerable<NPath> objectFiles, IEnumerable<PrecompiledLibrary> allLibraries)
+        public override BuiltNativeProgram CombineObjectFiles(
+            NPath destination,
+            CodeGen codegen,
+            IEnumerable<NPath> objectFiles,
+            IEnumerable<PrecompiledLibrary> allLibraries,
+            bool nativeProgramSupportsLeafInputCaching)
         {
             var requiredLibraries = allLibraries.ToList();
             foreach (var l in allLibraries.OfType<AndroidApkStaticLibrary>())
@@ -287,7 +300,12 @@ namespace Bee.Toolchain.Android
                     if (!requiredLibraries.Contains(sl)) requiredLibraries.Add(sl);
                 }
             }
-            return base.CombineObjectFiles(destination, codegen, objectFiles, requiredLibraries);
+            return base.CombineObjectFiles(
+                destination,
+                codegen,
+                objectFiles,
+                requiredLibraries,
+                nativeProgramSupportsLeafInputCaching);
         }
 
         protected override IEnumerable<string> CommandLineFlagsForLibrary(PrecompiledLibrary library, CodeGen codegen)
@@ -333,7 +351,7 @@ namespace Bee.Toolchain.Android
             m_libPath = toolchain.Architecture is Arm64Architecture ? "arm64-v8a" : "armeabi-v7a";
         }
 
-        public void SetAppPackagingParameters(String gameName, DotsConfiguration config, IEnumerable<IDeployable> supportFiles)
+        public void SetAppPackagingParameters(String gameName, DotsConfiguration config)
         {
             m_gameName = gameName;
         }
@@ -387,8 +405,7 @@ namespace Bee.Toolchain.Android
             m_apkToolchain = toolchain;
         }
 
-        //TODO get rid of supportFiles parameter, all required files are in Deployables array
-        public void SetAppPackagingParameters(String gameName, DotsConfiguration config, IEnumerable<IDeployable> supportFiles)
+        public void SetAppPackagingParameters(String gameName, DotsConfiguration config)
         {
             m_gameName = gameName;
             m_config = config;
@@ -441,7 +458,22 @@ namespace Bee.Toolchain.Android
             return orientationAttr;
         }
 
-        private NPath GenerateGradleProject(NPath gradleProjectPath)
+        private static string GetPermissionString(string permission)
+        {
+            return $"<uses-permission android:name=\"{permission}\" />";
+        }
+
+        private static string GetMetaDataString(string name, string val)
+        {
+            return $"<meta-data android:name=\"{name}\" android:value=\"{val}\" />";
+        }
+
+        private static string GetFeatureString(string name, bool required)
+        {
+            return $"<uses-feature android:name=\"{name}\" android:required=\"{required.ToString().ToLower()}\" />";
+        }
+
+        private void GenerateGradleProject(NPath gradleProjectPath)
         {
             var gradleSrcPath = AsmDefConfigFile.AsmDefDescriptionFor("Unity.Build.Android.DotsRuntime").Path.Parent.Combine("AndroidProjectTemplate~/");
 
@@ -521,6 +553,31 @@ namespace Bee.Toolchain.Android
             var hasCustomIcons = hasBackground || icons.Icons.Any(i => !String.IsNullOrEmpty(i.Foreground) || !String.IsNullOrEmpty(i.Legacy));
             var version = AndroidApkToolchain.Config.Settings.Version;
             var versionFieldCount = version.Revision > 0 ? 4 : 3;
+            var maxRatio = AndroidApkToolchain.Config.AspectRatio.GetMaxAspectRatio(AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel);
+            var additionalApplicationMetadata = "";
+            var additionalPermissions = "";
+            var additionalFeatures = "";
+            if (!String.IsNullOrEmpty(maxRatio))
+            {
+                additionalApplicationMetadata += GetMetaDataString("android.max_aspect", maxRatio);
+            }
+            if (BuildConfiguration.HasComponent<ARCoreSettings>())
+            {
+                additionalPermissions += GetPermissionString("android.permission.CAMERA");
+                if (AndroidApkToolchain.Config.ARCore.Requirement == Requirement.Optional)
+                {
+                    additionalApplicationMetadata += "\n" + GetMetaDataString("com.google.ar.core", "optional");
+                }
+                else
+                {
+                    additionalApplicationMetadata += "\n" + GetMetaDataString("com.google.ar.core", "required");
+                    additionalFeatures += GetFeatureString("android.hardware.camera.ar", true);
+                }
+                if (AndroidApkToolchain.Config.ARCore.DepthSupport == Requirement.Required)
+                {
+                    additionalFeatures += "\n" + GetFeatureString("com.google.ar.core.depth", true);
+                }
+            }
             var templateStrings = new Dictionary<string, string>
             {
                 { "**LOADLIBRARIES**", loadLibraries.ToString() },
@@ -537,6 +594,10 @@ namespace Bee.Toolchain.Android
                 { "**MINSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.MinAPILevel).ToString() },
                 { "**TARGETSDKVERSION**", ((int)AndroidApkToolchain.Config.APILevels.ResolvedTargetAPILevel).ToString()},
                 { "**CONFIGCHANGES**", configChanges },
+                { "**ACTIVITY_ASPECT**", String.IsNullOrEmpty(maxRatio) ? "" : $"android:maxAspectRatio=\"{maxRatio}\"" },
+                { "**ADDITIONAL_APPLICATION_METADATA**", additionalApplicationMetadata },
+                { "**ADDITIONAL_PERMISSIONS**", additionalPermissions },
+                { "**ADDITIONAL_FEATURES**", additionalFeatures },
                 { "**ABIFILTERS**", abiFilters },
                 { "**SIGN**", AndroidApkToolchain.Config.Keystore.GetSigningConfigs(useKeystore) },
                 { "**SIGNCONFIG**", AndroidApkToolchain.Config.Keystore.GetSigningConfig(useKeystore) },
@@ -566,7 +627,6 @@ namespace Bee.Toolchain.Android
             }
 
             // copy and patch project files
-            NPath buildGradlePath = null;
             var apiRx = new Regex(@".+res[\\|\/].+-v([0-9]+)$", RegexOptions.Compiled);
             foreach (var r in gradleSrcPath.Files(true))
             {
@@ -607,14 +667,7 @@ namespace Bee.Toolchain.Android
                 {
                     destPath = CopyTool.Instance().Setup(destPath, r);
                 }
-                if (destPath.FileName == "build.gradle")
-                {
-                    buildGradlePath = destPath;
-                }
-                else
-                {
-                    m_projectFiles.Add(destPath);
-                }
+                m_projectFiles.Add(destPath);
             }
 
             var localProperties = new StringBuilder();
@@ -623,9 +676,6 @@ namespace Bee.Toolchain.Android
             var localPropertiesPath = gradleProjectPath.Combine("local.properties");
             Backend.Current.AddWriteTextAction(localPropertiesPath, localProperties.ToString());
             m_projectFiles.Add(localPropertiesPath);
-            Backend.Current.AddDependency(buildGradlePath, m_projectFiles);
-
-            return buildGradlePath;
         }
 
         private void CopyIcon(NPath destPath, string dpi, string iconName, string configIcon)
@@ -657,8 +707,7 @@ namespace Bee.Toolchain.Android
             if (AndroidApkToolchain.ExportProject)
             {
                 var deployedPath = buildPath.Combine(m_gameName);
-                var buildGradlePath = GenerateGradleProject(deployedPath);
-                m_projectFiles.Add(buildGradlePath);
+                GenerateGradleProject(deployedPath);
 
                 // stub action to have deployedPath in build tree and set correct dependencies
                 Backend.Current.AddAction(
@@ -676,7 +725,7 @@ namespace Bee.Toolchain.Android
             {
                 var deployedPath = buildPath.Combine(m_gameName + "." + m_apkToolchain.ExecutableFormat.Extension);
                 var gradleProjectPath = mainLibPath.Parent.Parent.Parent.Parent.Parent;
-                var buildGradlePath = GenerateGradleProject(gradleProjectPath);
+                GenerateGradleProject(gradleProjectPath);
                 var pathToRoot = new NPath(string.Concat(Enumerable.Repeat("../", gradleProjectPath.Depth)));
 
                 var javaLaunchPath = new NPath(AndroidApkToolchain.Config.ExternalTools.JavaPath).Combine("bin").Combine("java");
@@ -691,7 +740,6 @@ namespace Bee.Toolchain.Android
                 var gradleBuildPath = gradleProjectPath.Combine("build/outputs").
                                       Combine(AndroidApkToolchain.BuildAppBundle ? "bundle" : "apk").
                                       Combine($"{config}/gradle-{config}.{(AndroidApkToolchain.BuildAppBundle ? "aab" : "apk")}");
-                m_projectFiles.Add(buildGradlePath);
 
                 Backend.Current.AddAction(
                     actionName: "Build Gradle project",

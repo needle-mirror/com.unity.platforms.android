@@ -4,6 +4,11 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2020-10-28
+### Changed
+- Bump minimum Unity version to `2020.1.2f1`.
+- Updated `com.unity.platforms` package dependency.
+
 ## [0.9.0] - 2020-08-28
 ### Changed
 - Update platforms packages to 0.9.0-preview

@@ -86,7 +86,7 @@ namespace Unity.Build.Android.Classic
                 var finalPath = Path.Combine(context.GetOutputBuildDirectory(), context.GetComponentOrDefault<GeneralSettings>().ProductName + Path.GetExtension(outputPath));
                 File.Copy(outputPath, finalPath, true);
 
-                var artifact = context.GetOrCreateValue<AndroidArtifact>();
+                var artifact = context.GetOrCreateBuildArtifact<AndroidArtifact>();
                 artifact.OutputTargetFile = new FileInfo(finalPath);
 
                 result = context.Success();

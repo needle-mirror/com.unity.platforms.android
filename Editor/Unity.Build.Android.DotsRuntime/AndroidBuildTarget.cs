@@ -33,10 +33,21 @@ namespace Unity.Build.Android.DotsRuntime
             typeof(AndroidExportSettings),
             typeof(AndroidInstallLocation),
             typeof(AndroidRenderOutsideSafeArea),
+            typeof(AndroidAspectRatio),
             typeof(AndroidIcons),
-            typeof(AndroidKeystore)
+            typeof(AndroidKeystore),
+            typeof(ARCoreSettings)
         };
 
+        public override Type[] DefaultComponents { get; } =
+        {
+            typeof(ScreenOrientations),
+            typeof(ApplicationIdentifier),
+            typeof(AndroidArchitectures)
+        };
+
+        public override string DefaultAssetFileName => "Android";
+        public override bool ShouldCreateBuildTargetByDefault => true;
         string PackageName { get; set; }
         AndroidExternalTools ExternalTools { get; set; }
         AndroidExportSettings ExportSettings { get; set; }
@@ -223,13 +234,29 @@ namespace Unity.Build.Android.DotsRuntime
 
         internal override ShellProcessOutput RunTestMode(string exeName, string workingDirPath, int timeout)
         {
-            ShellProcessOutput output;
-
             var executable = $"{workingDirPath}/{exeName}{ExecutableExtension}";
-            output = InstallApk(executable, workingDirPath);
-            if (!output.FullOutput.Contains("Success"))
+            var output = UninstallApp(executable, workingDirPath);
+            if (ExportSettings?.TargetType == AndroidTargetType.AndroidAppBundle)
             {
-                return output;
+                output = BuildApks(executable, workingDirPath);
+                // bundletool might write to stderr even if there are no errors
+                if (output.ExitCode != 0)
+                {
+                    return output;
+                }
+                output = InstallApks(workingDirPath);
+                if (output.ExitCode != 0)
+                {
+                    return output;
+                }
+            }
+            else
+            {
+                output = InstallApk(executable, workingDirPath);
+                if (!output.FullOutput.Contains("Success"))
+                {
+                    return output;
+                }
             }
 
             // clear logcat

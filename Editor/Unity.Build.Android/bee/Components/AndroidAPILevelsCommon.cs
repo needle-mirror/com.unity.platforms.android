@@ -6,7 +6,7 @@ namespace Unity.Build.Android
     internal sealed partial class AndroidAPILevels
     {
         const AndroidSdkVersions kMinAPILevel = AndroidSdkVersions.AndroidApiLevel19;
-        const AndroidSdkVersions kMaxAPILevel = AndroidSdkVersions.AndroidApiLevel28;
+        const AndroidSdkVersions kMaxAPILevel = AndroidSdkVersions.AndroidApiLevel29;
         AndroidSdkVersions m_MinAPILevel = kMinAPILevel;
         AndroidSdkVersions m_TargetAPILevel = AndroidSdkVersions.AndroidApiLevelAuto;
 

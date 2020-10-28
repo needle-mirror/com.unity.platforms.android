@@ -5,9 +5,9 @@ using UnityEditor;
 
 namespace Unity.Build.Android
 {
-    internal sealed partial class AndroidKeystore : IBuildComponent, ICustomBuildComponentConstructor
+    internal sealed partial class AndroidKeystore : IBuildComponent, IBuildComponentInitialize
     {
-        void ICustomBuildComponentConstructor.Construct(BuildConfiguration.ReadOnly config)
+        public void Initialize(BuildConfiguration.ReadOnly config)
         {
             var group = config.GetBuildTargetGroup();
             if (group == BuildTargetGroup.Unknown)

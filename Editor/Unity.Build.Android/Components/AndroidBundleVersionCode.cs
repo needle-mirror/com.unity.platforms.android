@@ -4,9 +4,9 @@ using UnityEditor;
 
 namespace Unity.Build.Android
 {
-    internal sealed partial class AndroidBundleVersionCode : IBuildComponent, ICustomBuildComponentConstructor
+    internal sealed partial class AndroidBundleVersionCode : IBuildComponent, IBuildComponentInitialize
     {
-        void ICustomBuildComponentConstructor.Construct(BuildConfiguration.ReadOnly config)
+        public void Initialize(BuildConfiguration.ReadOnly config)
         {
             if (!(config.GetBuildPipeline() is ClassicPipelineBase))
                 return;
